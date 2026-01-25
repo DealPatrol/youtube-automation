@@ -1,0 +1,226 @@
+import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase credentials')
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey)
+
+export async function POST(request: Request) {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('[API] Missing OPENAI_API_KEY')
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured' },
+        { status: 500 }
+      )
+    }
+
+    const { topic, description, video_length_minutes, tone, platform } = await request.json()
+
+    if (!topic || !video_length_minutes || !tone || !platform) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    const userId = 'anonymous-user'
+    let projectId = ''
+    let resultId = ''
+
+    try {
+      // Create project
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .insert({
+          user_id: userId,
+          title: topic,
+          topic,
+          description,
+          video_length_minutes,
+          tone,
+          platform,
+        })
+        .select('id')
+        .single()
+
+      if (projectError) throw projectError
+      projectId = projectData.id
+      console.log('[API] Project created:', projectId)
+
+      // Create result record
+      const { data: resultData, error: resultError } = await supabase
+        .from('results')
+        .insert({
+          project_id: projectId,
+          user_id: userId,
+          processing_status: 'processing',
+        })
+        .select('id')
+        .single()
+
+      if (resultError) throw resultError
+      resultId = resultData.id
+      console.log('[API] Result created:', resultId)
+
+      // Call OpenAI API to generate content
+      const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON (no markdown, no code blocks, no explanations).
+
+Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${platform} video about the given topic:
+
+{
+  "script": {
+    "title": "Compelling video title (under 60 chars)",
+    "duration": ${video_length_minutes},
+    "content": "2-3 sentence hook and overview of the entire video",
+    "sections": [
+      {"time": "0:00", "speaker": "Narrator", "text": "Opening hook to grab attention"},
+      {"time": "0:30", "speaker": "Narrator", "text": "What viewers will learn"},
+      {"time": "1:00", "speaker": "Narrator", "text": "First main point with details"},
+      {"time": "${Math.floor(video_length_minutes / 2)}:00", "speaker": "Narrator", "text": "Second main point with examples"},
+      {"time": "${Math.floor(video_length_minutes * 0.75)}:00", "speaker": "Narrator", "text": "Third main point or deeper dive"},
+      {"time": "${video_length_minutes - 1}:00", "speaker": "Narrator", "text": "Call to action and closing"}
+    ]
+  },
+  "scenes": [
+    {
+      "id": 1,
+      "title": "Intro Scene",
+      "start_time": "0:00",
+      "end_time": "1:00",
+      "visual_description": "Detailed visual description of what appears on screen",
+      "on_screen_text": "Any text overlays or graphics that appear"
+    },
+    {
+      "id": 2,
+      "title": "Main Content",
+      "start_time": "1:00",
+      "end_time": "${video_length_minutes - 1}:00",
+      "visual_description": "Detailed visual breakdown",
+      "on_screen_text": "Key points and graphics"
+    },
+    {
+      "id": 3,
+      "title": "Outro",
+      "start_time": "${video_length_minutes - 1}:00",
+      "end_time": "${video_length_minutes}:00",
+      "visual_description": "End screen with CTA",
+      "on_screen_text": "Subscribe and follow prompts"
+    }
+  ],
+  "capcut_steps": ["Step 1: Import and organize footage", "Step 2: Arrange timeline and trim clips", "Step 3: Add text overlays and graphics", "Step 4: Mix audio and add music", "Step 5: Export at optimal settings"],
+  "seo": {
+    "title": "SEO optimized title with main keyword",
+    "description": "2-3 sentence description explaining what viewers will learn",
+    "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+  },
+  "thumbnail": {
+    "text": "Bold text (2-4 words max) for the thumbnail",
+    "image_prompt": "Description of image concept that grabs attention",
+    "emotion": "The primary emotion this thumbnail should evoke"
+  }
+}`
+
+      const userPrompt = `Create a ${video_length_minutes}-minute ${tone} tone ${platform} video outline for: "${topic}"${description ? `\n\nAdditional context: ${description}` : ''}
+
+Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
+
+      console.log('[API] Calling OpenAI API...')
+      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 4000,
+        }),
+      })
+
+      if (!openaiResponse.ok) {
+        const error = await openaiResponse.text()
+        console.error('[API] OpenAI error:', error)
+        throw new Error(`OpenAI API error: ${error}`)
+      }
+
+      const openaiData = await openaiResponse.json()
+      let content = openaiData.choices[0].message.content.trim()
+      console.log('[API] Received OpenAI response, parsing...')
+
+      // Parse the JSON response
+      let generatedContent
+      try {
+        const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
+        if (jsonMatch) {
+          generatedContent = JSON.parse(jsonMatch[1])
+        } else {
+          generatedContent = JSON.parse(content)
+        }
+      } catch (parseError) {
+        console.error('[API] JSON parse error:', parseError)
+        console.error('[API] Raw content:', content)
+        throw new Error('Failed to parse generated content as JSON')
+      }
+
+      // Update result with generated content
+      const { error: updateError } = await supabase
+        .from('results')
+        .update({
+          script: generatedContent.script,
+          scenes: generatedContent.scenes || [],
+          capcut_steps: generatedContent.capcut_steps || [],
+          seo: generatedContent.seo,
+          thumbnail: generatedContent.thumbnail,
+          processing_status: 'completed',
+        })
+        .eq('id', resultId)
+
+      if (updateError) throw updateError
+      console.log('[API] Result updated with generated content')
+
+      return NextResponse.json({
+        projectId,
+        resultId,
+      })
+    } catch (error) {
+      console.error('[API] Generation error:', error)
+
+      // Update result status to error
+      if (resultId) {
+        try {
+          await supabase
+            .from('results')
+            .update({
+              processing_status: 'error',
+              error_message: error instanceof Error ? error.message : 'Unknown error',
+            })
+            .eq('id', resultId)
+        } catch (updateError) {
+          console.error('[API] Failed to update error status:', updateError)
+        }
+      }
+
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Failed to generate content' },
+        { status: 500 }
+      )
+    }
+  } catch (error) {
+    console.error('[API] Request error:', error)
+    return NextResponse.json(
+      { error: 'Invalid request' },
+      { status: 400 }
+    )
+  }
+}
