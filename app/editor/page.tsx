@@ -3,20 +3,27 @@
 import React from "react"
 
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
-import { Upload, Scissors, Type, Download, Play, Pause } from 'lucide-react'
+import { Upload, Scissors, Type, Download, Play, Pause, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 export default function VideoEditor() {
+  const searchParams = useSearchParams()
+  const projectId = searchParams.get('projectId')
+  
   const videoRef = useRef<HTMLVideoElement>(null)
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [projectData, setProjectData] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   
   // Edit controls
   const [trimStart, setTrimStart] = useState(0)
@@ -27,6 +34,27 @@ export default function VideoEditor() {
   // Processing state
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    if (projectId) {
+      loadProject(projectId)
+    }
+  }, [projectId])
+
+  async function loadProject(id: string) {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/editor/load-project?projectId=${id}`)
+      if (!response.ok) throw new Error('Failed to load project')
+      const data = await response.json()
+      setProjectData(data)
+      console.log('[v0] Loaded project:', data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load project')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (videoRef.current) {
@@ -113,6 +141,47 @@ export default function VideoEditor() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {loading && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading project...</p>
+          </div>
+        )}
+        
+        {error && (
+          <Card className="mb-6 border-destructive">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="w-5 h-5" />
+                <p>{error}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {projectData && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>{projectData.title}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {projectData.scenes.length} scenes • Ready to edit
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {projectData.scenes.map((scene: any) => (
+                  <div key={scene.id} className="border border-border rounded-lg p-3">
+                    <div className="aspect-video bg-muted rounded mb-2 flex items-center justify-center">
+                      <Type className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-xs font-medium truncate">{scene.title}</p>
+                    <p className="text-xs text-muted-foreground">{scene.duration}s</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Video Preview */}
           <div className="lg:col-span-2">
@@ -124,7 +193,9 @@ export default function VideoEditor() {
                 {!videoUrl ? (
                   <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
                     <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-muted-foreground mb-4">Upload a video to start editing</p>
+                    <p className="text-muted-foreground mb-4">
+                      {projectData ? 'Video rendering coming soon' : 'Upload a video to start editing'}
+                    </p>
                     <Input
                       type="file"
                       accept="video/*"

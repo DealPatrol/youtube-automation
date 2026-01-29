@@ -336,11 +336,21 @@ export default function ResultsPage() {
                 size="sm"
                 onClick={downloadVideoPackage}
                 disabled={rendering}
-                className="bg-purple-600 hover:bg-purple-700"
+                variant="outline"
+                className="bg-transparent"
               >
                 <Download className="w-4 h-4 mr-2" />
                 {rendering ? 'Creating...' : 'Download Project'}
               </Button>
+              <Link href={`/editor?projectId=${resultId}`}>
+                <Button
+                  size="sm"
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  <Film className="w-4 h-4 mr-2" />
+                  Open in Editor
+                </Button>
+              </Link>
               <Button
                 size="sm"
                 onClick={uploadToYouTube}
