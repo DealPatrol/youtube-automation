@@ -47,9 +47,10 @@ export default function ResultsPage() {
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null)
   const [rendering, setRendering] = useState(false)
   const [renderStatus, setRenderStatus] = useState('')
-
-  // Use the video render hook
-  const { job, loading: renderLoading, error: renderError, checkStatus } = useVideoRender({ apiUrl })
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [renderLoading, setRenderLoading] = useState(false)
+  const [renderError, setRenderError] = useState('')
+  const [job, setJob] = useState<any | null>(null)
 
   useEffect(() => {
     loadResult()
@@ -114,8 +115,46 @@ export default function ResultsPage() {
     URL.revokeObjectURL(url)
   }
 
+  async function renderVideo() {
+    if (!result) return
+    
+    setRendering(true)
+    setRenderStatus('Starting video render...')
+    
+    console.log('[v0] Starting video render for result:', resultId)
+    
+    try {
+      const response = await fetch('/api/render-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resultId }),
+      })
+      
+      console.log('[v0] Render API response status:', response.status)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to render video')
+      }
+      
+      const data = await response.json()
+      console.log('[v0] Render API response:', data)
+      
+      setRenderStatus(data.message || 'Video rendered successfully!')
+      setVideoUrl(data.videoUrl)
+      
+      // Reload result to get video_url
+      await loadResult()
+    } catch (err) {
+      console.error('[v0] Render error:', err)
+      setRenderStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setRendering(false)
+    }
+  }
+
   async function uploadToYouTube() {
-    if (!result?.seo) {
+    if (!result || !result.seo) {
       alert('SEO data not available')
       return
     }
@@ -123,24 +162,7 @@ export default function ResultsPage() {
     setUploading(true)
 
     try {
-      // Step 1: Redirect to YouTube OAuth
-      const clientId = process.env.NEXT_PUBLIC_YOUTUBE_CLIENT_ID
-      if (!clientId) {
-        alert('YouTube API not configured. Contact support.')
-        setUploading(false)
-        return
-      }
-
-      const redirectUri = `${window.location.origin}/api/auth/youtube/callback`
-      const scope = 'https://www.googleapis.com/auth/youtube.upload'
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`
-
-      // Store the video data in sessionStorage for use after OAuth
-      sessionStorage.setItem('youtubeVideoData', JSON.stringify({
-        title: result.seo.title,
-        description: result.seo.description,
-        tags: result.seo.tags,
-      }))
+      const authUrl = `/api/auth/youtube?resultId=${resultId}&title=${encodeURIComponent(result.seo.title || 'My Video')}&description=${encodeURIComponent(result.seo.description || '')}&tags=${encodeURIComponent(result.seo.tags?.join(',') || '')}`
 
       window.location.href = authUrl
     } catch (err) {
@@ -173,7 +195,7 @@ export default function ResultsPage() {
     }
   }
 
-  const renderVideo = startVideoRender; // Declare the renderVideo variable
+  const renderVideoFunction = startVideoRender; // Declare the renderVideo variable
 
   if (loading) {
     return (
@@ -263,7 +285,7 @@ export default function ResultsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(result)}
+                onClick={() => copyToClipboard(JSON.stringify(result, null, 2))}
                 className="bg-transparent"
               >
                 <Copy className="w-4 h-4 mr-2" />
@@ -281,11 +303,11 @@ export default function ResultsPage() {
               <Button
                 size="sm"
                 onClick={renderVideo}
-                disabled={renderLoading}
+                disabled={rendering}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                <Zap className="w-4 h-4 mr-2" />
-                {renderLoading ? 'Rendering...' : 'Render Video'}
+                <Film className="w-4 h-4 mr-2" />
+                {rendering ? 'Rendering...' : 'Render Video'}
               </Button>
               <Button
                 size="sm"
@@ -306,34 +328,18 @@ export default function ResultsPage() {
               )}
             </div>
           </div>
-          {renderError && (
-            <p className="text-sm mt-2 text-destructive">{renderError}</p>
+          {renderStatus && (
+            <p className="text-sm mt-2 text-muted-foreground">{renderStatus}</p>
           )}
-          {job && (
+          {videoUrl && (
             <div className="mt-4 p-4 rounded-lg border border-border bg-card/50">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Rendering Progress</span>
-                <span className="text-sm text-muted-foreground">{job.progress}%</span>
-              </div>
-              <Progress value={job.progress} className="mb-2" />
-              {job.current_step && (
-                <p className="text-xs text-muted-foreground">
-                  Current step: {job.current_step.replace(/_/g, ' ')}
-                </p>
-              )}
-              {job.status === 'completed' && job.video_url && (
-                <div className="mt-3 pt-3 border-t border-border">
-                  <a href={job.video_url} download>
-                    <Button size="sm" className="w-full">
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Rendered Video
-                    </Button>
-                  </a>
-                </div>
-              )}
-              {job.status === 'failed' && job.error_message && (
-                <p className="text-xs text-destructive mt-2">{job.error_message}</p>
-              )}
+              <p className="text-sm font-medium mb-2">Video Ready!</p>
+              <a href={videoUrl} download>
+                <Button size="sm" className="w-full">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Rendered Video
+                </Button>
+              </a>
             </div>
           )}
         </div>
