@@ -119,7 +119,7 @@ export default function ResultsPage() {
     if (!result) return
     
     setRendering(true)
-    setRenderStatus('Creating video package...')
+    setRenderStatus('Creating project file...')
     
     try {
       const response = await fetch('/api/download-package', {
@@ -129,21 +129,21 @@ export default function ResultsPage() {
       })
       
       if (!response.ok) {
-        throw new Error('Failed to create video package')
+        throw new Error('Failed to create project file')
       }
       
-      // Download the ZIP file
+      // Download the JSON file
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `video-project-${resultId}.zip`
+      a.download = `video-project-${resultId}.json`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
-      setRenderStatus('Video package downloaded! Unzip and run render.py')
+      setRenderStatus('Project file downloaded! Import into video editor or use with Python script.')
     } catch (err) {
       console.error('[v0] Download error:', err)
       setRenderStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -339,7 +339,7 @@ export default function ResultsPage() {
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 <Download className="w-4 h-4 mr-2" />
-                {rendering ? 'Creating...' : 'Download Video Package'}
+                {rendering ? 'Creating...' : 'Download Project'}
               </Button>
               <Button
                 size="sm"
