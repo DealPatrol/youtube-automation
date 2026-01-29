@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-video_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Queue
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: "postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-video_db}"
+      REDIS_URL: "redis://redis:6379"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      UNSPLASH_API_KEY: ${UNSPLASH_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api:/app/api
+      - ./storage:/app/storage
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Video Rendering Worker
+  video-worker:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      DATABASE_URL: "postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-video_db}"
+      STORAGE_PATH: /app/storage/videos
+      UNSPLASH_API_KEY: ${UNSPLASH_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./workers:/app/workers
+      - ./api:/app/api
+      - ./storage:/app/storage
+    command: python /app/workers/video_renderer.py
+
+  # Optional: Worker for TTS
+  tts-worker:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      - redis
+    volumes:
+      - ./workers:/app/workers
+      - ./storage:/app/storage
+    command: python /app/workers/tts_generator.py
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: video-engine

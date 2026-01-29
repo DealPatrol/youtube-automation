@@ -2,41 +2,15 @@
 
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { auth } from '@/lib/firebase/config'
-import { signOut as firebaseSignOut } from 'firebase/auth'
 import { Button } from '@/components/ui/button'
-import { LogOut, Settings, LayoutDashboard } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { onAuthStateChanged } from 'firebase/auth'
+import { LayoutDashboard } from 'lucide-react'
 
 export function Header() {
   const router = useRouter()
   const pathname = usePathname()
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user)
-      setLoading(false)
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  const isAuthPage = pathname?.startsWith('/auth')
-  const showHeader = !isAuthPage && isAuthenticated
-
-  if (loading || !showHeader) return null
-
-  async function handleSignOut() {
-    try {
-      await firebaseSignOut(auth)
-      router.push('/auth/login')
-    } catch (error) {
-      console.error('Sign out error:', error)
-    }
-  }
+  // Hide header on home page
+  if (pathname === '/') return null
 
   return (
     <header className="border-b border-border">
@@ -51,28 +25,10 @@ export function Header() {
             asChild
             className="gap-2"
           >
-            <Link href="/dashboard">
+            <Link href="/">
               <LayoutDashboard className="w-4 h-4" />
-              Dashboard
+              Home
             </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            asChild
-            className="gap-2"
-          >
-            <Link href="/profile">
-              <Settings className="w-4 h-4" />
-              Settings
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleSignOut}
-            className="gap-2 bg-transparent"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
           </Button>
         </nav>
 
@@ -83,16 +39,9 @@ export function Header() {
             size="sm"
             asChild
           >
-            <Link href="/profile">
-              <Settings className="w-4 h-4" />
+            <Link href="/">
+              <LayoutDashboard className="w-4 h-4" />
             </Link>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSignOut}
-          >
-            <LogOut className="w-4 h-4" />
           </Button>
         </div>
       </div>

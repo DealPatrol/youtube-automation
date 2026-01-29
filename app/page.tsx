@@ -38,12 +38,19 @@ export default function GeneratorPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to generate content')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate content')
       }
 
       const data = await response.json()
-      router.push(`/results/${data.projectId}`)
+      
+      if (!data.resultId) {
+        throw new Error('No result ID received from server')
+      }
+
+      router.push(`/results/${data.resultId}`)
     } catch (err) {
+      console.error('[v0] Generation error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
