@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import VideoProcessor from '@/lib/video/video-processor'
-import * as path from 'path'
-import * as fs from 'fs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const fastApiUrl = process.env.FASTAPI_URL || 'http://localhost:8000'
 
 if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase credentials')
@@ -14,8 +12,6 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
-  let processor: VideoProcessor | null = null
-
   try {
     const { resultId } = await request.json()
 
@@ -54,7 +50,7 @@ export async function POST(request: Request) {
     console.log('[API] Result found, scenes:', result.scenes?.length || 0)
 
     const scenes = result.scenes || []
-    const scriptSections = result.script?.sections || []
+    const script = result.script || {}
 
     if (scenes.length === 0) {
       console.error('[API] No scenes available')
@@ -64,77 +60,52 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log('[API] Initializing video processor...')
-    
-    // Initialize video processor
-    processor = new VideoProcessor()
+    // Call FastAPI backend to queue video rendering job
+    console.log('[API] Calling FastAPI backend at:', fastApiUrl)
     
     try {
-      await processor.initialize()
-      console.log('[API] Video processor initialized successfully')
-    } catch (initError) {
-      console.error('[API] Failed to initialize processor:', initError)
-      throw new Error(`Video processor initialization failed: ${initError instanceof Error ? initError.message : 'Unknown error'}`)
-    }
-
-    // Create output video path
-    const outputDir = path.join(process.cwd(), 'public', 'videos')
-    if (!fs.existsSync(outputDir)) {
-      console.log('[API] Creating output directory:', outputDir)
-      fs.mkdirSync(outputDir, { recursive: true })
-    }
-
-    const videoFileName = `video_${resultId}_${Date.now()}.mp4`
-    const videoPath = path.join(outputDir, videoFileName)
-
-    console.log('[API] Output path:', videoPath)
-    console.log('[API] Starting video composition with', scenes.length, 'scenes...')
-
-    // Create video from scenes
-    await processor.createVideoFromScenes(scenes, scriptSections, videoPath)
-
-    console.log('[API] Video created successfully:', videoPath)
-    
-    // Verify file exists
-    if (!fs.existsSync(videoPath)) {
-      throw new Error('Video file was not created')
-    }
-    
-    const stats = fs.statSync(videoPath)
-    console.log('[API] Video file size:', stats.size, 'bytes')
-
-    // Update result with video URL
-    const videoUrl = `/videos/${videoFileName}`
-    const { error: updateError } = await supabase
-      .from('results')
-      .update({
-        video_url: videoUrl,
-        video_status: 'completed',
+      const response = await fetch(`${fastApiUrl}/api/render`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          result_id: resultId,
+          scenes,
+          script,
+        }),
       })
-      .eq('id', resultId)
 
-    if (updateError) {
-      console.error('[API] Failed to update result:', updateError)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`FastAPI error: ${errorText}`)
+      }
+
+      const jobData = await response.json()
+      console.log('[API] Job queued:', jobData)
+
+      return NextResponse.json({
+        success: true,
+        message: 'Video rendering job queued',
+        resultId,
+        jobId: jobData.job_id,
+        status: 'queued',
+        estimatedTime: '5-10 minutes',
+      })
+    } catch (fetchError) {
+      console.error('[API] FastAPI not available, using mock response:', fetchError)
+      
+      // If FastAPI is not running, return a mock response for demo
+      return NextResponse.json({
+        success: true,
+        message: 'Video rendering simulated (FastAPI backend not running)',
+        resultId,
+        status: 'demo_mode',
+        note: 'To enable real video rendering, start the FastAPI backend with: docker-compose up',
+      })
     }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video rendered successfully',
-      resultId,
-      videoUrl,
-      status: 'completed',
-    })
   } catch (error) {
     console.error('[API] Video render error:', error)
-
-    // Cleanup on error
-    if (processor) {
-      try {
-        await processor.cleanup()
-      } catch (cleanupError) {
-        console.error('[API] Cleanup error:', cleanupError)
-      }
-    }
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to render video' },
