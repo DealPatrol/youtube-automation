@@ -35,43 +35,73 @@ export async function POST(request: Request) {
       .eq('id', resultId)
       .single()
 
-    if (dbError || !result) {
+    if (dbError) {
+      console.error('[API] Database error:', dbError)
+      return NextResponse.json(
+        { error: `Database error: ${dbError.message}` },
+        { status: 500 }
+      )
+    }
+
+    if (!result) {
+      console.error('[API] Result not found:', resultId)
       return NextResponse.json(
         { error: 'Result not found' },
         { status: 404 }
       )
     }
 
-    // Initialize video processor
-    processor = new VideoProcessor()
-    await processor.initialize()
+    console.log('[API] Result found, scenes:', result.scenes?.length || 0)
 
     const scenes = result.scenes || []
     const scriptSections = result.script?.sections || []
 
     if (scenes.length === 0) {
-      await processor.cleanup()
+      console.error('[API] No scenes available')
       return NextResponse.json(
         { error: 'No scenes available for video generation' },
         { status: 400 }
       )
     }
 
+    console.log('[API] Initializing video processor...')
+    
+    // Initialize video processor
+    processor = new VideoProcessor()
+    
+    try {
+      await processor.initialize()
+      console.log('[API] Video processor initialized successfully')
+    } catch (initError) {
+      console.error('[API] Failed to initialize processor:', initError)
+      throw new Error(`Video processor initialization failed: ${initError instanceof Error ? initError.message : 'Unknown error'}`)
+    }
+
     // Create output video path
     const outputDir = path.join(process.cwd(), 'public', 'videos')
     if (!fs.existsSync(outputDir)) {
+      console.log('[API] Creating output directory:', outputDir)
       fs.mkdirSync(outputDir, { recursive: true })
     }
 
     const videoFileName = `video_${resultId}_${Date.now()}.mp4`
     const videoPath = path.join(outputDir, videoFileName)
 
-    console.log('[API] Starting video composition...')
+    console.log('[API] Output path:', videoPath)
+    console.log('[API] Starting video composition with', scenes.length, 'scenes...')
 
     // Create video from scenes
     await processor.createVideoFromScenes(scenes, scriptSections, videoPath)
 
     console.log('[API] Video created successfully:', videoPath)
+    
+    // Verify file exists
+    if (!fs.existsSync(videoPath)) {
+      throw new Error('Video file was not created')
+    }
+    
+    const stats = fs.statSync(videoPath)
+    console.log('[API] Video file size:', stats.size, 'bytes')
 
     // Update result with video URL
     const videoUrl = `/videos/${videoFileName}`
