@@ -115,13 +115,48 @@ export default function ResultsPage() {
     URL.revokeObjectURL(url)
   }
 
+  async function downloadVideoPackage() {
+    if (!result) return
+    
+    setRendering(true)
+    setRenderStatus('Creating video package...')
+    
+    try {
+      const response = await fetch('/api/download-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resultId }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to create video package')
+      }
+      
+      // Download the ZIP file
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `video-project-${resultId}.zip`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      setRenderStatus('Video package downloaded! Unzip and run render.py')
+    } catch (err) {
+      console.error('[v0] Download error:', err)
+      setRenderStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setRendering(false)
+    }
+  }
+
   async function renderVideo() {
     if (!result) return
     
     setRendering(true)
     setRenderStatus('Starting video render...')
-    
-    console.log('[v0] Starting video render for result:', resultId)
     
     try {
       const response = await fetch('/api/render-video', {
@@ -130,15 +165,12 @@ export default function ResultsPage() {
         body: JSON.stringify({ resultId }),
       })
       
-      console.log('[v0] Render API response status:', response.status)
-      
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to render video')
       }
       
       const data = await response.json()
-      console.log('[v0] Render API response:', data)
       
       setRenderStatus(data.message || 'Video rendered successfully!')
       setVideoUrl(data.videoUrl)
@@ -302,12 +334,12 @@ export default function ResultsPage() {
               </Button>
               <Button
                 size="sm"
-                onClick={renderVideo}
+                onClick={downloadVideoPackage}
                 disabled={rendering}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                <Film className="w-4 h-4 mr-2" />
-                {rendering ? 'Rendering...' : 'Render Video'}
+                <Download className="w-4 h-4 mr-2" />
+                {rendering ? 'Creating...' : 'Download Video Package'}
               </Button>
               <Button
                 size="sm"
