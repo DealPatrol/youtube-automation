@@ -127,29 +127,47 @@ export class VideoProcessor {
     sections: ScriptSection[],
     outputPath: string
   ): Promise<void> {
+    console.log('[VideoProcessor] Creating video from', scenes.length, 'scenes')
+    
     const clips: { path: string; duration: number }[] = []
 
     for (const scene of scenes) {
       try {
+        console.log(`[VideoProcessor] Processing scene ${scene.id}: ${scene.title}`)
+        
         const startTime = await this.parseTimestamp(scene.start_time)
         const endTime = await this.parseTimestamp(scene.end_time)
-        const duration = endTime - startTime
+        const duration = Math.max(1, endTime - startTime)
 
-        // Fetch image for scene
-        const imagePath = await this.fetchImage(scene.visual_description)
+        console.log(`[VideoProcessor] Scene ${scene.id} duration: ${duration}s`)
+
+        // Create placeholder image for this scene
+        const imagePath = await this.createPlaceholderImage()
+        console.log(`[VideoProcessor] Created placeholder image: ${imagePath}`)
 
         // Add text overlay if available
         let finalImagePath = imagePath
         if (scene.on_screen_text) {
           const textImagePath = path.join(this.tempDir, `scene_text_${scene.id}.jpg`)
+          console.log(`[VideoProcessor] Adding text overlay: ${scene.on_screen_text}`)
           finalImagePath = await this.addTextOverlay(imagePath, scene.on_screen_text, textImagePath)
         }
 
         clips.push({ path: finalImagePath, duration })
+        console.log(`[VideoProcessor] Scene ${scene.id} ready`)
       } catch (error) {
-        console.error(`Failed to process scene ${scene.id}:`, error)
+        console.error(`[VideoProcessor] Failed to process scene ${scene.id}:`, error)
+        // Create a fallback placeholder clip
+        try {
+          const fallbackPath = await this.createPlaceholderImage()
+          clips.push({ path: fallbackPath, duration: 3 })
+        } catch (fallbackError) {
+          console.error('[VideoProcessor] Fallback also failed:', fallbackError)
+        }
       }
     }
+
+    console.log('[VideoProcessor] Total clips created:', clips.length)
 
     if (clips.length === 0) {
       throw new Error('No valid clips to create video')
@@ -160,12 +178,24 @@ export class VideoProcessor {
     const concatContent = clips
       .map(clip => `file '${clip.path}'\nduration ${clip.duration}`)
       .join('\n')
+    
+    console.log('[VideoProcessor] Writing concat file:', concatPath)
     fs.writeFileSync(concatPath, concatContent)
+    console.log('[VideoProcessor] Concat file content:\n', concatContent)
 
-    // Combine clips
-    await execPromise(
-      `ffmpeg -f concat -safe 0 -i ${concatPath} -c:v libx264 -pix_fmt yuv420p -c:a aac ${outputPath}`
-    )
+    // Combine clips with FFmpeg
+    console.log('[VideoProcessor] Running FFmpeg to combine clips...')
+    try {
+      const { stdout, stderr } = await execPromise(
+        `ffmpeg -f concat -safe 0 -i ${concatPath} -c:v libx264 -pix_fmt yuv420p -r 24 -y ${outputPath}`
+      )
+      console.log('[VideoProcessor] FFmpeg stdout:', stdout)
+      if (stderr) console.log('[VideoProcessor] FFmpeg stderr:', stderr)
+      console.log('[VideoProcessor] Video created at:', outputPath)
+    } catch (ffmpegError: any) {
+      console.error('[VideoProcessor] FFmpeg error:', ffmpegError)
+      throw new Error(`FFmpeg failed: ${ffmpegError.message}`)
+    }
   }
 
   async exportMP4(inputPath: string, outputPath: string): Promise<void> {
