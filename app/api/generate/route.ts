@@ -12,10 +12,25 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
+    const openaiKey = process.env.OPENAI_API_KEY?.trim()
+    
+    console.log('[API] OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
+    console.log('[API] OPENAI_API_KEY trimmed:', !!openaiKey)
+    console.log('[API] OPENAI_API_KEY length:', openaiKey?.length)
+    console.log('[API] OPENAI_API_KEY first 10 chars:', openaiKey?.substring(0, 10))
+
+    if (!openaiKey) {
       console.error('[API] Missing OPENAI_API_KEY')
       return NextResponse.json(
-        { error: 'OpenAI API key not configured' },
+        { error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.' },
+        { status: 500 }
+      )
+    }
+
+    if (!openaiKey.startsWith('sk-')) {
+      console.error('[API] Invalid OPENAI_API_KEY format - does not start with sk-', `Got: ${openaiKey.substring(0, 20)}`)
+      return NextResponse.json(
+        { error: 'Invalid OpenAI API key format. API key should start with "sk-"' },
         { status: 500 }
       )
     }
@@ -130,15 +145,15 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
 
 Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
 
-      console.log('[API] Calling OpenAI API...')
+      console.log('[API] Calling OpenAI API with model gpt-4o')
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${openaiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4-turbo',
+          model: 'gpt-4o',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -149,9 +164,14 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
       })
 
       if (!openaiResponse.ok) {
-        const error = await openaiResponse.text()
-        console.error('[API] OpenAI error:', error)
-        throw new Error(`OpenAI API error: ${error}`)
+        const error = await openaiResponse.json()
+        console.error('[API] OpenAI error response:', JSON.stringify(error, null, 2))
+        
+        if (error.error?.code === 'invalid_api_key') {
+          throw new Error('Invalid OpenAI API key. Please check your API key in the Vars section and ensure it starts with "sk-".')
+        }
+        
+        throw new Error(error.error?.message || 'OpenAI API request failed')
       }
 
       const openaiData = await openaiResponse.json()

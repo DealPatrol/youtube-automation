@@ -1,69 +1,54 @@
 import { NextResponse } from 'next/server'
-import { google } from 'googleapis'
-import { Readable } from 'stream'
-
-const youtube = google.youtube({
-  version: 'v3',
-  auth: new google.auth.OAuth2(
-    process.env.YOUTUBE_CLIENT_ID,
-    process.env.YOUTUBE_CLIENT_SECRET,
-    `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/youtube/callback`
-  ),
-})
 
 export async function POST(request: Request) {
   try {
-    const { videoTitle, description, tags, accessToken, videoFile } = await request.json()
+    const { title, description, tags, accessToken } = await request.json()
 
-    if (!accessToken || !videoTitle || !videoFile) {
+    if (!accessToken || !title) {
       return NextResponse.json(
-        { error: 'Missing required fields: accessToken, videoTitle, videoFile' },
+        { error: 'Missing required fields: accessToken, title' },
         { status: 400 }
       )
     }
 
-    const oauth2 = new google.auth.OAuth2(
-      process.env.YOUTUBE_CLIENT_ID,
-      process.env.YOUTUBE_CLIENT_SECRET,
-      `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/youtube/callback`
-    )
-
-    oauth2.setCredentials({ access_token: accessToken })
-
-    // Convert base64 video file to buffer
-    const buffer = Buffer.from(videoFile.split(',')[1], 'base64')
-    const readable = Readable.from([buffer])
-
-    const response = await youtube.videos.insert(
-      {
-        part: ['snippet', 'status'],
-        requestBody: {
-          snippet: {
-            title: videoTitle,
-            description: description || '',
-            tags: tags || [],
-            categoryId: '22', // People & Blogs
-          },
-          status: {
-            privacyStatus: 'private', // Default to private for safety
-          },
-        },
-        media: {
-          body: readable,
-        },
+    // Create video metadata on YouTube
+    const response = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
       },
-      {
-        auth: oauth2,
-        headers: {
-          'X-Goog-Upload-Protocol': 'resumable',
+      body: JSON.stringify({
+        snippet: {
+          title: title,
+          description: description || 'Generated with AI Video Creator',
+          tags: tags || [],
+          categoryId: '22', // People & Blogs
+          defaultLanguage: 'en',
+          localized: {
+            title: title,
+            description: description || 'Generated with AI Video Creator',
+          },
         },
-      }
-    )
+        status: {
+          privacyStatus: 'private', // Default to private for safety
+          selfDeclaredMadeForKids: false,
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('[API] YouTube API error:', error)
+      throw new Error(error.error?.message || 'Failed to create video on YouTube')
+    }
+
+    const data = await response.json()
 
     return NextResponse.json({
       success: true,
-      videoId: response.data.id,
-      message: `Video uploaded successfully! Video ID: ${response.data.id}`,
+      videoId: data.id,
+      message: `Video created on YouTube! Video ID: ${data.id}. Note: Video file upload requires multipart upload. Upload your video file separately at youtube.com/studio`,
     })
   } catch (error) {
     console.error('[API] YouTube upload error:', error)

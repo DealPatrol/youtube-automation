@@ -7,16 +7,19 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertCircle, Copy, Download, ArrowLeft, Upload, ExternalLink } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
+import { AlertCircle, Copy, Download, ArrowLeft, Upload, ExternalLink, Film, Zap } from 'lucide-react'
 import ScriptTab from '@/components/tabs/ScriptTab'
 import ScenesTab from '@/components/tabs/ScenesTab'
 import CapCutTab from '@/components/tabs/CapCutTab'
 import SEOTab from '@/components/tabs/SEOTab'
 import ThumbnailTab from '@/components/tabs/ThumbnailTab'
+import { useVideoRender } from '@/app/hooks/use-video-render'
 import Link from 'next/link'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
 
@@ -30,6 +33,7 @@ interface ResultData {
   processing_status: string
   error_message: string | null
   project_id: string
+  video_url?: string
 }
 
 export default function ResultsPage() {
@@ -41,6 +45,11 @@ export default function ResultsPage() {
   const [copied, setCopied] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadedVideoId, setUploadedVideoId] = useState<string | null>(null)
+  const [rendering, setRendering] = useState(false)
+  const [renderStatus, setRenderStatus] = useState('')
+
+  // Use the video render hook
+  const { job, loading: renderLoading, error: renderError, checkStatus } = useVideoRender({ apiUrl })
 
   useEffect(() => {
     loadResult()
@@ -139,6 +148,32 @@ export default function ResultsPage() {
       setUploading(false)
     }
   }
+
+  async function startVideoRender() {
+    setRendering(true)
+    setRenderStatus('Starting video rendering...')
+
+    try {
+      const response = await fetch('/api/render-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resultId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to render video')
+      }
+
+      const data = await response.json()
+      setRenderStatus(`${data.message}. Estimated time: ${data.estimatedTime}`)
+    } catch (err) {
+      setRenderStatus(`Render error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setRendering(false)
+    }
+  }
+
+  const renderVideo = startVideoRender; // Declare the renderVideo variable
 
   if (loading) {
     return (
@@ -245,9 +280,18 @@ export default function ResultsPage() {
               </Button>
               <Button
                 size="sm"
+                onClick={renderVideo}
+                disabled={renderLoading}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                {renderLoading ? 'Rendering...' : 'Render Video'}
+              </Button>
+              <Button
+                size="sm"
                 onClick={uploadToYouTube}
                 disabled={uploading}
-                className="bg-secondary hover:bg-secondary/90"
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
               >
                 <Upload className="w-4 h-4 mr-2" />
                 {uploading ? 'Uploading...' : 'Upload to YouTube'}
@@ -262,6 +306,36 @@ export default function ResultsPage() {
               )}
             </div>
           </div>
+          {renderError && (
+            <p className="text-sm mt-2 text-destructive">{renderError}</p>
+          )}
+          {job && (
+            <div className="mt-4 p-4 rounded-lg border border-border bg-card/50">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Rendering Progress</span>
+                <span className="text-sm text-muted-foreground">{job.progress}%</span>
+              </div>
+              <Progress value={job.progress} className="mb-2" />
+              {job.current_step && (
+                <p className="text-xs text-muted-foreground">
+                  Current step: {job.current_step.replace(/_/g, ' ')}
+                </p>
+              )}
+              {job.status === 'completed' && job.video_url && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <a href={job.video_url} download>
+                    <Button size="sm" className="w-full">
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Rendered Video
+                    </Button>
+                  </a>
+                </div>
+              )}
+              {job.status === 'failed' && job.error_message && (
+                <p className="text-xs text-destructive mt-2">{job.error_message}</p>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
