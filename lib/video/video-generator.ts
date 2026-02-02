@@ -31,7 +31,8 @@ export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoSc
       console.log(`[v0] Generating image for scene ${scene.id}: ${scene.title}`)
       
       // Use fal.ai to generate scene images
-      const response = await fetch('/api/generate-image', {
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+      const response = await fetch(`${baseUrl}/api/generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
