@@ -12,12 +12,22 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Validate required environment variables
+    const clientId = process.env.YOUTUBE_CLIENT_ID
+    if (!clientId) {
+      console.error('[API] Missing YOUTUBE_CLIENT_ID environment variable')
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing YOUTUBE_CLIENT_ID' },
+        { status: 500 }
+      )
+    }
+
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
     const callbackUrl = `${baseUrl}/api/auth/youtube/callback`
 
     // Build OAuth consent URL with proper URL encoding
     const params = new URLSearchParams({
-      client_id: process.env.YOUTUBE_CLIENT_ID || '',
+      client_id: clientId,
       redirect_uri: callbackUrl,
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube',

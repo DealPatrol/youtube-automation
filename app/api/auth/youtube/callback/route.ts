@@ -18,6 +18,14 @@ export async function GET(request: Request) {
     const state = searchParams.get('state') // OAuth state parameter contains resultId
     const resultId = state || 'unknown'
 
+    // Validate required environment variables
+    const clientId = process.env.YOUTUBE_CLIENT_ID
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
+    if (!clientId || !clientSecret) {
+      console.error('[OAuth] Missing YouTube credentials - YOUTUBE_CLIENT_ID or YOUTUBE_CLIENT_SECRET not set')
+      throw new Error('Server configuration error: Missing YouTube credentials')
+    }
+
     if (error) {
       const redirectUrl = resultId && resultId !== 'unknown' 
         ? `/results/${resultId}?youtube_error=${encodeURIComponent(error)}`
@@ -37,8 +45,8 @@ export async function GET(request: Request) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: process.env.YOUTUBE_CLIENT_ID || '',
-        client_secret: process.env.YOUTUBE_CLIENT_SECRET || '',
+        client_id: clientId,
+        client_secret: clientSecret,
         code,
         grant_type: 'authorization_code',
         redirect_uri: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/youtube/callback`,
