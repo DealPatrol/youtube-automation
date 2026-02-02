@@ -43,6 +43,31 @@ async function parseFormData(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate required environment variables
+    if (!process.env.YOUTUBE_CLIENT_ID) {
+      console.error('[API] Missing YOUTUBE_CLIENT_ID environment variable')
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing YouTube Client ID' },
+        { status: 500 }
+      )
+    }
+
+    if (!process.env.YOUTUBE_CLIENT_SECRET) {
+      console.error('[API] Missing YOUTUBE_CLIENT_SECRET environment variable')
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing YouTube Client Secret' },
+        { status: 500 }
+      )
+    }
+
+    if (!process.env.NEXTAUTH_URL) {
+      console.error('[API] Missing NEXTAUTH_URL environment variable')
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing authentication URL' },
+        { status: 500 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const resultId = searchParams.get('resultId')
     const title = searchParams.get('title') || 'Untitled Video'
@@ -73,7 +98,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Initialize OAuth2 client
+    // Initialize OAuth2 client with validated environment variables
     const oauth2Client = new google.auth.OAuth2(
       process.env.YOUTUBE_CLIENT_ID,
       process.env.YOUTUBE_CLIENT_SECRET,
