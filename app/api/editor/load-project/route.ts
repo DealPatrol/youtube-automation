@@ -32,6 +32,9 @@ export async function GET(request: Request) {
 
     // Transform to editor format
     const editorData = {
+      id: result.id,
+      title: result.seo?.title || 'Untitled Video',
+      videoUrl: result.video_url || null,
       scenes: (result.scenes || []).map((scene: any, index: number) => ({
         id: scene.id || index + 1,
         image: scene.image_url || '',
@@ -40,10 +43,10 @@ export async function GET(request: Request) {
         title: scene.title || `Scene ${index + 1}`,
         description: scene.visual_description || '',
       })),
-      title: result.seo?.title || 'Untitled Video',
       metadata: {
         projectId: result.id,
         createdAt: result.created_at,
+        status: result.processing_status,
       },
     }
 

@@ -12,14 +12,14 @@ Your YouTube AI Builder app requires Firebase credentials to work. Follow these 
 - Copy the following values from the "General" tab:
 
 **Public Variables (NEXT_PUBLIC_*):**
-```
+\`\`\`
 NEXT_PUBLIC_FIREBASE_API_KEY = [apiKey]
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = [authDomain]
 NEXT_PUBLIC_FIREBASE_PROJECT_ID = [projectId]
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = [storageBucket]
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = [messagingSenderId]
 NEXT_PUBLIC_FIREBASE_APP_ID = [appId]
-```
+\`\`\`
 
 ### 3. Setup Firestore Database
 - In Firebase Console, go to "Firestore Database"
@@ -56,23 +56,23 @@ NEXT_PUBLIC_FIREBASE_APP_ID = [appId]
 In your Vercel project (or local .env.local):
 
 **Client-side (Public):**
-```
+\`\`\`
 NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-```
+\`\`\`
 
 **Server-side (Private):**
-```
+\`\`\`
 FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_PRIVATE_KEY_ID=your_private_key_id
 FIREBASE_PRIVATE_KEY=your_private_key_with_newlines
 FIREBASE_CLIENT_EMAIL=your_service_account_email
 FIREBASE_CLIENT_ID=your_client_id
-```
+\`\`\`
 
 ### 7. Add Google OAuth Configuration
 - In Firebase Console, go to Authentication → Settings

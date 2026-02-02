@@ -17,22 +17,22 @@ This guide explains how to set up YouTube direct upload functionality for the Yo
 2. Click **+ Create Credentials** → **OAuth client ID**
 3. Choose **Web application**
 4. Add Authorized redirect URIs:
-   ```
+   \`\`\`
    http://localhost:3000/api/auth/youtube/callback
    https://your-domain.com/api/auth/youtube/callback
-   ```
+   \`\`\`
 5. Copy the **Client ID** and **Client Secret**
 
 ## Step 3: Add Environment Variables
 
 Add these to your v0 Vars section:
 
-```
+\`\`\`
 YOUTUBE_CLIENT_ID=your_client_id_here
 YOUTUBE_CLIENT_SECRET=your_client_secret_here
 NEXTAUTH_URL=https://your-domain.com (or http://localhost:3000 for local dev)
 NEXT_PUBLIC_YOUTUBE_CLIENT_ID=your_client_id_here
-```
+\`\`\`
 
 ## Step 4: How It Works
 

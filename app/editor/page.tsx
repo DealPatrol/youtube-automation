@@ -57,14 +57,15 @@ export default function VideoEditor() {
   }
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.addEventListener('loadedmetadata', () => {
-        const dur = videoRef.current?.duration || 0
-        setDuration(dur)
-        setTrimEnd(dur)
-      })
+    if (projectData?.videoUrl) {
+      setVideoUrl(projectData.videoUrl)
+    } else if (projectData?.scenes && projectData.scenes.length > 0) {
+      const firstScene = projectData.scenes[0]
+      if (firstScene.image) {
+        setVideoUrl(firstScene.image)
+      }
     }
-  }, [videoUrl])
+  }, [projectData])
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -194,39 +195,60 @@ export default function VideoEditor() {
                   <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
                     <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <p className="text-muted-foreground mb-4">
-                      {projectData ? 'Video rendering coming soon' : 'Upload a video to start editing'}
+                      {projectData ? 'Loading video...' : 'Upload a video to start editing'}
                     </p>
-                    <Input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleFileUpload}
-                      className="max-w-xs mx-auto"
-                    />
+                    {!projectData && (
+                      <Input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleFileUpload}
+                        className="max-w-xs mx-auto"
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="relative bg-black rounded-lg overflow-hidden">
-                      <video
-                        ref={videoRef}
-                        src={videoUrl}
-                        className="w-full"
-                        onPlay={() => setIsPlaying(true)}
-                        onPause={() => setIsPlaying(false)}
-                      />
+                    <div className="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
+                      {videoUrl.endsWith('.mp4') || videoUrl.startsWith('blob:') ? (
+                        <video
+                          ref={videoRef}
+                          src={videoUrl}
+                          className="w-full h-full"
+                          controls
+                          onLoadedMetadata={() => {
+                            if (videoRef.current) {
+                              const dur = videoRef.current.duration || 0
+                              setDuration(dur)
+                              setTrimEnd(dur)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <img
+                          src={videoUrl || "/placeholder.svg"}
+                          alt="Video preview"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
                     </div>
-                    
-                    <div className="flex items-center justify-center gap-4">
-                      <Button onClick={togglePlayPause} size="lg">
-                        {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={togglePlayPause}
+                        className="bg-transparent"
+                      >
+                        {isPlaying ? (
+                          <Pause className="w-4 h-4 mr-2" />
+                        ) : (
+                          <Play className="w-4 h-4 mr-2" />
+                        )}
+                        {isPlaying ? 'Pause' : 'Play'}
                       </Button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Timeline</Label>
-                      <div className="text-xs text-muted-foreground flex justify-between">
-                        <span>{trimStart.toFixed(1)}s</span>
-                        <span>{trimEnd.toFixed(1)}s</span>
-                      </div>
+                      <Button size="sm" variant="outline" className="bg-transparent">
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                      </Button>
                     </div>
                   </div>
                 )}

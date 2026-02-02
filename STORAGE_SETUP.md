@@ -7,7 +7,7 @@ This guide covers setting up cloud storage (AWS S3 or Cloudflare R2) and CDN del
 
 ### 1. Create S3 Bucket
 
-```bash
+\`\`\`bash
 # Via AWS CLI
 aws s3 mb s3://video-engine-videos --region us-east-1
 
@@ -15,11 +15,11 @@ aws s3 mb s3://video-engine-videos --region us-east-1
 # Services → S3 → Create bucket
 # Name: video-engine-videos
 # Region: us-east-1
-```
+\`\`\`
 
 ### 2. Create IAM User for API Access
 
-```bash
+\`\`\`bash
 # Create policy
 {
   "Version": "2012-10-17",
@@ -44,22 +44,22 @@ aws s3 mb s3://video-engine-videos --region us-east-1
 aws iam create-user --user-name video-engine-worker
 aws iam put-user-policy --user-name video-engine-worker --policy-name s3-access --policy-document file://policy.json
 aws iam create-access-key --user-name video-engine-worker
-```
+\`\`\`
 
 ### 3. Configure .env
 
-```env
+\`\`\`env
 STORAGE_PROVIDER=s3
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 AWS_REGION=us-east-1
 AWS_S3_BUCKET=video-engine-videos
 CDN_URL=https://cdn.example.com
-```
+\`\`\`
 
 ### 4. Setup CloudFront CDN
 
-```bash
+\`\`\`bash
 # Create CloudFront distribution
 # Origin Domain: video-engine-videos.s3.amazonaws.com
 # Origin Path: /
@@ -73,7 +73,7 @@ CDN_URL=https://cdn.example.com
 
 # Update CDN_URL in .env
 CDN_URL=https://d123456.cloudfront.net
-```
+\`\`\`
 
 ---
 
@@ -81,37 +81,37 @@ CDN_URL=https://d123456.cloudfront.net
 
 ### 1. Create R2 Bucket
 
-```bash
+\`\`\`bash
 # Log into Cloudflare Dashboard
 # R2 → Create bucket
 # Name: video-engine
 # Region: Auto
-```
+\`\`\`
 
 ### 2. Generate API Tokens
 
-```bash
+\`\`\`bash
 # In Cloudflare Dashboard
 # R2 → Settings → Create API token
 # Permissions: Admin
 # Scope: All buckets
 # Generate token
-```
+\`\`\`
 
 ### 3. Get R2 API Credentials
 
-```bash
+\`\`\`bash
 # In Cloudflare Dashboard
 # R2 → Settings → Download credentials
 # Contains:
 # - R2 Access Key ID
 # - R2 Secret Access Key
 # - R2 Endpoint URL (s3.{region}.r2.cloudflarestorage.com)
-```
+\`\`\`
 
 ### 4. Configure .env
 
-```env
+\`\`\`env
 STORAGE_PROVIDER=r2
 R2_ENDPOINT_URL=https://s3.us-east-1.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=your_access_key
@@ -120,25 +120,25 @@ R2_BUCKET_NAME=video-engine
 CDN_URL=https://video.example.com
 CLOUDFLARE_ZONE_ID=your_zone_id
 CLOUDFLARE_API_TOKEN=your_api_token
-```
+\`\`\`
 
 ### 5. Setup R2 Custom Domain
 
-```bash
+\`\`\`bash
 # Cloudflare Dashboard
 # Websites → Select domain
 # R2 → Create custom domain
 # Domain: video.example.com
 # R2 bucket: video-engine
-```
+\`\`\`
 
 ### 6. Enable R2 Analytics
 
-```bash
+\`\`\`bash
 # Monitor bandwidth usage
 # Cloudflare Dashboard
 # R2 → Settings → Analytics
-```
+\`\`\`
 
 ---
 
@@ -146,7 +146,7 @@ CLOUDFLARE_API_TOKEN=your_api_token
 
 Update `docker-compose.yml` to include upload worker:
 
-```yaml
+\`\`\`yaml
 upload-worker:
   build:
     context: ./workers
@@ -174,7 +174,7 @@ upload-worker:
     - ./api:/app/api
     - ./storage:/app/storage
   command: python /app/workers/upload_worker.py
-```
+\`\`\`
 
 ---
 
@@ -182,7 +182,7 @@ upload-worker:
 
 ### 1. Upload a Test File
 
-```python
+\`\`\`python
 from storage.storage import StorageService
 
 storage = StorageService(provider="s3")
@@ -192,23 +192,23 @@ url = storage.upload_file(
     content_type="video/mp4"
 )
 print(f"Uploaded to: {url}")
-```
+\`\`\`
 
 ### 2. Test Signed URLs
 
-```python
+\`\`\`python
 signed_url = storage.generate_signed_url("videos/result_123/video.mp4", expiration=3600)
 print(f"Signed URL: {signed_url}")
-```
+\`\`\`
 
 ### 3. Test Cache Invalidation
 
-```python
+\`\`\`python
 from storage.storage import CloudflareR2StorageService
 
 r2 = CloudflareR2StorageService()
 r2.invalidate_cache("https://video.example.com/videos/result_123/video.mp4")
-```
+\`\`\`
 
 ---
 

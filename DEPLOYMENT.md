@@ -18,7 +18,7 @@ This is a distributed video generation SaaS with the following components:
 
 ### 1. Clone and Setup
 
-```bash
+\`\`\`bash
 # Clone the repository
 git clone <repo-url>
 cd saas-video-engine
@@ -28,11 +28,11 @@ cp .env.example .env
 
 # Edit .env with your API keys
 nano .env
-```
+\`\`\`
 
 ### 2. Start Services with Docker Compose
 
-```bash
+\`\`\`bash
 # Build and start all services
 docker-compose up -d
 
@@ -42,7 +42,7 @@ docker-compose logs -f video-worker
 
 # Stop services
 docker-compose down
-```
+\`\`\`
 
 Services will be available at:
 - **API**: http://localhost:8000
@@ -51,19 +51,19 @@ Services will be available at:
 
 ### 3. Test the API
 
-```bash
+\`\`\`bash
 # Health check
 curl http://localhost:8000/health
 
 # View API docs
 open http://localhost:8000/docs
-```
+\`\`\`
 
 ## Production Deployment
 
 ### Option 1: AWS EC2 + RDS + ElastiCache
 
-```bash
+\`\`\`bash
 # 1. Launch EC2 instance (Ubuntu 22.04 LTS)
 # 2. Install Docker and Docker Compose
 # 3. Clone repository
@@ -71,12 +71,12 @@ open http://localhost:8000/docs
 # 5. Configure ElastiCache endpoint in .env
 # 6. Deploy with docker-compose
 docker-compose up -d
-```
+\`\`\`
 
 ### Option 2: Railway / Render / Fly.io
 
 **Railway:**
-```bash
+\`\`\`bash
 # Install Railway CLI
 npm i -g @railway/cli
 
@@ -86,24 +86,24 @@ railway login
 # Deploy
 railway link
 railway up
-```
+\`\`\`
 
 ### Option 3: Kubernetes
 
-```bash
+\`\`\`bash
 # Build images
 docker build -t saas-video-api ./api
 docker build -t saas-video-worker ./workers
 
 # Deploy to cluster
 kubectl apply -f k8s/
-```
+\`\`\`
 
 ## Architecture Details
 
 ### 1. Frontend → API Flow
 
-```
+\`\`\`
 Next.js App
     ↓
 POST /api/generate
@@ -114,11 +114,11 @@ FastAPI Backend
     └─ Return resultId
     ↓
 Return to UI
-```
+\`\`\`
 
 ### 2. Video Processing Pipeline
 
-```
+\`\`\`
 Redis Queue
     ↓
 Video Worker (pulls job)
@@ -133,7 +133,7 @@ Upload to S3/R2
 Invalidate CDN cache
     ↓
 Store video_url in DB
-```
+\`\`\`
 
 ### 3. Scaling Strategy
 
@@ -149,7 +149,7 @@ Store video_url in DB
 ## Monitoring & Logging
 
 ### Local Development
-```bash
+\`\`\`bash
 # View API logs
 docker-compose logs -f api
 
@@ -161,10 +161,10 @@ redis-cli MONITOR
 
 # Monitor Database
 psql -U postgres -d video_db -c "\dt"
-```
+\`\`\`
 
 ### Production (AWS CloudWatch)
-```bash
+\`\`\`bash
 # Enable CloudWatch logging in docker-compose
 # Log group: /saas/api and /saas/workers
 # Use CloudWatch Dashboard to monitor:
@@ -172,12 +172,12 @@ psql -U postgres -d video_db -c "\dt"
 # - Job completion rate
 # - Video render time
 # - Error rate
-```
+\`\`\`
 
 ## API Endpoints
 
 ### Generate Video
-```bash
+\`\`\`bash
 POST /api/videos/generate
 Content-Type: application/json
 
@@ -195,10 +195,10 @@ Response:
   "result_id": "uuid",
   "status": "pending"
 }
-```
+\`\`\`
 
 ### Check Status
-```bash
+\`\`\`bash
 GET /api/videos/{result_id}/status
 
 Response:
@@ -208,10 +208,10 @@ Response:
   "current_step": "encoding_video",
   "video_url": "/videos/video_xxx.mp4"
 }
-```
+\`\`\`
 
 ### Get Result
-```bash
+\`\`\`bash
 GET /api/videos/{result_id}
 
 Response:
@@ -222,12 +222,12 @@ Response:
   "script": {...},
   "scenes": [...]
 }
-```
+\`\`\`
 
 ## Troubleshooting
 
 ### Worker not processing jobs
-```bash
+\`\`\`bash
 # Check Redis connection
 redis-cli ping
 
@@ -236,10 +236,10 @@ redis-cli LLEN video:queue
 
 # View worker logs
 docker-compose logs video-worker
-```
+\`\`\`
 
 ### Video encoding fails
-```bash
+\`\`\`bash
 # Check FFmpeg installation
 ffmpeg -version
 
@@ -249,16 +249,16 @@ df -h /app/storage
 # Increase timeout in docker-compose
 # environment: 
 #   - RENDER_TIMEOUT=600
-```
+\`\`\`
 
 ### Database connection errors
-```bash
+\`\`\`bash
 # Test PostgreSQL connection
 psql postgresql://user:pass@localhost:5432/video_db
 
 # Check PostgreSQL logs
 docker-compose logs postgres
-```
+\`\`\`
 
 ## Next Steps
 

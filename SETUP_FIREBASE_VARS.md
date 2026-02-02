@@ -6,7 +6,7 @@ Add these variables to your v0 project's **Vars** section (click the gear icon i
 
 These should be added as private variables in v0:
 
-```
+\`\`\`
 FIREBASE_PROJECT_ID=youtube-automation-483620
 
 FIREBASE_PRIVATE_KEY_ID=71299b31215fdf02fe828c21d564004d07406fea
@@ -18,13 +18,13 @@ FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@youtube-automation-483620.iam.gser
 FIREBASE_CLIENT_ID=106965128228729185031
 
 OPENAI_API_KEY=<your-openai-api-key>
-```
+\`\`\`
 
 ## Client-Side Firebase Credentials (Public)
 
 You still need these public variables from Firebase Console → Project Settings → Web App Config:
 
-```
+\`\`\`
 NEXT_PUBLIC_FIREBASE_API_KEY=<get from firebase console>
 
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=youtube-automation-483620.firebaseapp.com
@@ -36,7 +36,7 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=youtube-automation-483620.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=<get from firebase console>
 
 NEXT_PUBLIC_FIREBASE_APP_ID=<get from firebase console>
-```
+\`\`\`
 
 ## How to Find the Remaining Values
 
