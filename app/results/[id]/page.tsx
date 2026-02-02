@@ -192,13 +192,65 @@ export default function ResultsPage() {
     }
 
     setUploading(true)
+    setRenderStatus('Uploading to YouTube...')
 
     try {
-      const authUrl = `/api/auth/youtube?resultId=${resultId}&title=${encodeURIComponent(result.seo.title || 'My Video')}&description=${encodeURIComponent(result.seo.description || '')}&tags=${encodeURIComponent(result.seo.tags?.join(',') || '')}`
+      // Check if authenticated with YouTube
+      const params = new URLSearchParams({
+        resultId,
+        title: result.seo.title || 'Untitled Video',
+        description: result.seo.description || '',
+        tags: result.seo.tags?.join(',') || '',
+      })
 
-      window.location.href = authUrl
+      // Fetch video file if available
+      let videoFile: File | null = null
+      if (result.video_url) {
+        try {
+          const videoResponse = await fetch(result.video_url)
+          if (videoResponse.ok) {
+            const blob = await videoResponse.blob()
+            videoFile = new File([blob], 'video.mp4', { type: 'video/mp4' })
+          }
+        } catch (fetchErr) {
+          console.log('[v0] Could not fetch video file, proceeding without it')
+        }
+      }
+
+      // If no video file, authenticate first
+      if (!videoFile) {
+        const authUrl = `/api/auth/youtube?resultId=${resultId}`
+        window.location.href = authUrl
+        return
+      }
+
+      // Create FormData for multipart upload
+      const formData = new FormData()
+      formData.append('video', videoFile)
+
+      const response = await fetch(`/api/youtube/direct-upload?${params.toString()}`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        if (response.status === 401) {
+          const authUrl = `/api/auth/youtube?resultId=${resultId}`
+          window.location.href = authUrl
+          return
+        }
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const data = await response.json()
+      setUploadedVideoId(data.videoId)
+      setRenderStatus(`✓ Video uploaded! View it here: ${data.url}`)
+      await loadResult()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to start YouTube upload')
+      setRenderStatus(`Upload error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      console.error('[v0] Upload error:', err)
+    } finally {
       setUploading(false)
     }
   }
