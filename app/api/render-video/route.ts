@@ -106,7 +106,7 @@ export async function POST(request: Request) {
           processing_status: 'error',
           error_message: error instanceof Error ? error.message : 'Unknown error',
         })
-        .eq('id', request.json().then(body => body.resultId))
+        .eq('id', resultId)
     } catch (updateError) {
       console.error('[API] Failed to update error status:', updateError)
     }
