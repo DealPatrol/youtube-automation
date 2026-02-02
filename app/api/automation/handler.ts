@@ -4,33 +4,67 @@ import { OpenAI } from 'openai'
 import * as admin from 'firebase-admin'
 
 // ---------- FIREBASE INIT ----------
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FB_PROJECT_ID,
-      clientEmail: process.env.FB_CLIENT_EMAIL,
-      privateKey: process.env.FB_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  })
+let db: admin.firestore.Firestore | null = null
+let firebaseInitError: string | null = null
+
+try {
+  if (!admin.apps.length) {
+    const projectId = process.env.FB_PROJECT_ID
+    const clientEmail = process.env.FB_CLIENT_EMAIL
+    const privateKey = process.env.FB_PRIVATE_KEY
+
+    if (!projectId || !clientEmail || !privateKey) {
+      throw new Error(
+        `Missing Firebase credentials. Required env vars: FB_PROJECT_ID (${!!projectId}), FB_CLIENT_EMAIL (${!!clientEmail}), FB_PRIVATE_KEY (${!!privateKey})`
+      )
+    }
+
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId,
+        clientEmail,
+        privateKey: privateKey.replace(/\\n/g, '\n'),
+      }),
+    })
+  }
+  db = admin.firestore()
+} catch (err) {
+  firebaseInitError = err instanceof Error ? err.message : String(err)
+  console.error('[INIT] Firebase initialization failed:', firebaseInitError)
 }
-const db = admin.firestore()
 
 // ---------- OPENAI INIT (SCRIPT GEN) ----------
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+let openai: OpenAI | null = null
+let openaiInitError: string | null = null
+
+try {
+  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  if (!apiKey) {
+    throw new Error('Missing OPENAI_API_KEY environment variable')
+  }
+  openai = new OpenAI({ apiKey })
+} catch (err) {
+  openaiInitError = err instanceof Error ? err.message : String(err)
+  console.error('[INIT] OpenAI initialization failed:', openaiInitError)
+}
 
 // ---------- YOUTUBE OAUTH INIT ----------
-function getYouTubeClient() {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.YT_CLIENT_ID,
-    process.env.YT_CLIENT_SECRET,
-    process.env.YT_REDIRECT_URI
-  )
+let youtubeInitError: string | null = null
 
-  oauth2Client.setCredentials({
-    refresh_token: process.env.YT_REFRESH_TOKEN,
-  })
+function getYouTubeClient() {
+  const clientId = process.env.YT_CLIENT_ID
+  const clientSecret = process.env.YT_CLIENT_SECRET
+  const redirectUri = process.env.YT_REDIRECT_URI
+  const refreshToken = process.env.YT_REFRESH_TOKEN
+
+  if (!clientId || !clientSecret || !redirectUri || !refreshToken) {
+    throw new Error(
+      `Missing YouTube OAuth credentials. Required env vars: YT_CLIENT_ID (${!!clientId}), YT_CLIENT_SECRET (${!!clientSecret}), YT_REDIRECT_URI (${!!redirectUri}), YT_REFRESH_TOKEN (${!!refreshToken})`
+    )
+  }
+
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
+  oauth2Client.setCredentials({ refresh_token: refreshToken })
 
   return google.youtube({
     version: 'v3',
@@ -41,6 +75,39 @@ function getYouTubeClient() {
 // ---------- MAIN HANDLER ----------
 export async function POST(request: NextRequest) {
   try {
+    // Check initialization errors
+    if (firebaseInitError) {
+      console.error('[API] Firebase not initialized:', firebaseInitError)
+      return NextResponse.json(
+        { error: 'Firebase not configured', details: firebaseInitError },
+        { status: 500 }
+      )
+    }
+
+    if (openaiInitError) {
+      console.error('[API] OpenAI not initialized:', openaiInitError)
+      return NextResponse.json(
+        { error: 'OpenAI not configured', details: openaiInitError },
+        { status: 500 }
+      )
+    }
+
+    if (!db) {
+      console.error('[API] Database not available')
+      return NextResponse.json(
+        { error: 'Database not available', details: firebaseInitError || 'Unknown error' },
+        { status: 500 }
+      )
+    }
+
+    if (!openai) {
+      console.error('[API] OpenAI client not available')
+      return NextResponse.json(
+        { error: 'OpenAI not available', details: openaiInitError || 'Unknown error' },
+        { status: 500 }
+      )
+    }
+
     const { action } = await request.json()
 
     switch (action) {
@@ -163,6 +230,21 @@ async function handlePublishNow(request: NextRequest) {
     return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
   }
 
+  try {
+    var youtube = getYouTubeClient()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[API] YouTube client initialization failed:', message)
+    return NextResponse.json(
+      { error: 'YouTube credentials not configured', details: message },
+      { status: 500 }
+    )
+  }
+
+  if (!db) {
+    return NextResponse.json({ error: 'Database not available' }, { status: 500 })
+  }
+
   const jobSnap = await db.collection('jobs').doc(jobId).get()
   if (!jobSnap.exists) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 })
@@ -175,8 +257,6 @@ async function handlePublishNow(request: NextRequest) {
       { status: 400 }
     )
   }
-
-  const youtube = getYouTubeClient()
 
   // Fetch video as buffer
   const videoResp = await fetch(job.videoUrl)
@@ -246,6 +326,22 @@ async function handleSchedule(request: NextRequest) {
 
 // ---------- 5) CRON: RUN DUE SCHEDULES ----------
 async function handleRunDueSchedules(request: NextRequest) {
+  let youtube
+  try {
+    youtube = getYouTubeClient()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[API] YouTube client initialization failed:', message)
+    return NextResponse.json(
+      { error: 'YouTube credentials not configured', details: message },
+      { status: 500 }
+    )
+  }
+
+  if (!db) {
+    return NextResponse.json({ error: 'Database not available' }, { status: 500 })
+  }
+
   const now = admin.firestore.Timestamp.now()
 
   const snap = await db
@@ -254,7 +350,6 @@ async function handleRunDueSchedules(request: NextRequest) {
     .where('runAt', '<=', now)
     .get()
 
-  const youtube = getYouTubeClient()
   const results: any[] = []
 
   for (const doc of snap.docs) {
