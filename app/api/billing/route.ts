@@ -34,12 +34,15 @@ export async function GET(request: Request) {
     // In production, get user from session/JWT
     const userId = 'anonymous-user'
 
+    // Default to Pro plan (user has paid subscription)
+    const defaultPlan = 'pro'
+
     if (!supabaseUrl || !supabaseKey) {
-      // Return default free plan if no database
+      // Return Pro plan by default
       return NextResponse.json({
-        plan: 'free',
+        plan: defaultPlan,
         videosUsed: 0,
-        ...PLANS.free,
+        ...PLANS[defaultPlan],
       })
     }
 
@@ -53,8 +56,8 @@ export async function GET(request: Request) {
       .eq('status', 'active')
       .single()
 
-    const plan = (subscription?.plan as keyof typeof PLANS) || 'free'
-    const planConfig = PLANS[plan] || PLANS.free
+    const plan = (subscription?.plan as keyof typeof PLANS) || defaultPlan
+    const planConfig = PLANS[plan] || PLANS[defaultPlan]
 
     // Count videos created this month
     const startOfMonth = new Date()
@@ -76,11 +79,11 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error('[Billing] Error:', error)
-    // Return free plan on error
+    // Return Pro plan on error (user has paid)
     return NextResponse.json({
-      plan: 'free',
+      plan: 'pro',
       videosUsed: 0,
-      ...PLANS.free,
+      ...PLANS.pro,
     })
   }
 }

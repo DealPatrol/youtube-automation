@@ -40,8 +40,14 @@ export default function GeneratorPage() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate content')
+        try {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to generate content')
+        } catch (parseError) {
+          const text = await response.text()
+          console.error('[v0] API error response:', text)
+          throw new Error(`API Error: ${response.status} - ${response.statusText}`)
+        }
       }
 
       const data = await response.json()

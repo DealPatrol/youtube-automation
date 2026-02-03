@@ -68,10 +68,10 @@ export default function DashboardPage() {
     scheduledVideos: 0,
   })
   const [planLimits, setPlanLimits] = useState<PlanLimits>({
-    plan: 'free',
+    plan: 'pro',
     videosUsed: 0,
-    videosLimit: 5,
-    autoPostingEnabled: false,
+    videosLimit: 50,
+    autoPostingEnabled: true,
     multiChannelEnabled: false,
   })
   const [autoPostingActive, setAutoPostingActive] = useState(false)

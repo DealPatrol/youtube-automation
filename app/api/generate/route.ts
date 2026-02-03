@@ -146,7 +146,7 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
 
 Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
 
-      console.log('[API] Calling OpenAI API with model gpt-4o')
+      console.log('[API] Calling OpenAI API with model gpt-4o-mini')
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -154,7 +154,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
           Authorization: `Bearer ${openaiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
