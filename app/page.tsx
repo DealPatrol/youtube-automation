@@ -12,6 +12,7 @@ export default function GeneratorPage() {
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
+  const [clipDuration, setClipDuration] = useState('5')
   const [tone, setTone] = useState('neutral')
   const [platform, setPlatform] = useState('youtube')
   const [loading, setLoading] = useState(false)
@@ -32,6 +33,7 @@ export default function GeneratorPage() {
           topic,
           description,
           video_length_minutes: parseInt(videoLength),
+          clip_duration_seconds: parseInt(clipDuration),
           tone,
           platform,
         }),
@@ -141,10 +143,10 @@ export default function GeneratorPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="length" className="text-sm font-bold block">
-                    Length
+                    Total Length
                   </label>
                   <select
                     id="length"
@@ -163,6 +165,50 @@ export default function GeneratorPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <label htmlFor="platform" className="text-sm font-bold block">
+                    Platform
+                  </label>
+                  <select
+                    id="platform"
+                    value={platform}
+                    onChange={(e) => setPlatform(e.target.value)}
+                    disabled={loading}
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                  >
+                    <option value="youtube">YouTube</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="instagram">Instagram Reels</option>
+                    <option value="twitch">Twitch</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="clip-duration" className="text-sm font-bold block">
+                    Clip Duration (for TikTok/Shorts)
+                  </label>
+                  <select
+                    id="clip-duration"
+                    value={clipDuration}
+                    onChange={(e) => setClipDuration(e.target.value)}
+                    disabled={loading}
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                  >
+                    <option value="5">5 seconds</option>
+                    <option value="10">10 seconds</option>
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="45">45 seconds</option>
+                    <option value="60">60 seconds</option>
+                    <option value="90">90 seconds</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    TikTok optimal: 15-90 sec
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <label htmlFor="tone" className="text-sm font-bold block">
                     Vibe
                   </label>
@@ -178,24 +224,6 @@ export default function GeneratorPage() {
                     <option value="dramatic">Dramatic</option>
                     <option value="humorous">Humorous</option>
                     <option value="educational">Educational</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="platform" className="text-sm font-bold block">
-                    Platform
-                  </label>
-                  <select
-                    id="platform"
-                    value={platform}
-                    onChange={(e) => setPlatform(e.target.value)}
-                    disabled={loading}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
-                  >
-                    <option value="youtube">YouTube</option>
-                    <option value="tiktok">TikTok</option>
-                    <option value="instagram">Instagram Reels</option>
-                    <option value="twitch">Twitch</option>
                   </select>
                 </div>
               </div>

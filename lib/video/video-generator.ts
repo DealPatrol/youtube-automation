@@ -1,6 +1,6 @@
 /**
  * Video Generation Service
- * Handles video creation using AI-generated images for scenes
+ * Handles video creation using AI-generated video clips for scenes
  */
 
 export interface VideoScene {
@@ -11,6 +11,7 @@ export interface VideoScene {
   start_time?: string
   end_time?: string
   image_url?: string
+  video_url?: string
 }
 
 export interface VideoGenerationOptions {
@@ -21,7 +22,78 @@ export interface VideoGenerationOptions {
 }
 
 /**
- * Generate images for each scene using AI
+ * Generate video clips for each scene using Kling Video API
+ */
+export async function generateSceneVideos(scenes: VideoScene[], duration: number = 5): Promise<VideoScene[]> {
+  const updatedScenes = []
+
+  for (const scene of scenes) {
+    try {
+      console.log(`[v0] Generating ${duration}s video for scene ${scene.id}: ${scene.title}`)
+      
+      // Use fal.ai Kling Video to generate actual video clips
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+      const response = await fetch(`${baseUrl}/api/generate-video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `${scene.visual_description}. ${scene.on_screen_text}`,
+          sceneId: scene.id,
+          duration: duration,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate video for scene ${scene.id}`)
+      }
+
+      const data = await response.json()
+      
+      updatedScenes.push({
+        ...scene,
+        video_url: data.videoUrl,
+        image_url: data.thumbnailUrl || data.videoUrl, // Use video as fallback
+      })
+
+      console.log(`[v0] Scene ${scene.id} video generated: ${data.videoUrl}`)
+    } catch (error) {
+      console.error(`[v0] Error generating video for scene ${scene.id}:`, error)
+      
+      // Fallback to image generation if video fails
+      try {
+        const imageResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/generate-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: scene.visual_description,
+            aspectRatio: '16:9',
+          }),
+        })
+
+        if (imageResponse.ok) {
+          const imageData = await imageResponse.json()
+          updatedScenes.push({
+            ...scene,
+            image_url: imageData.imageUrl,
+          })
+        } else {
+          throw new Error('Image fallback failed')
+        }
+      } catch (fallbackError) {
+        console.error(`[v0] Fallback image generation failed for scene ${scene.id}:`, fallbackError)
+        updatedScenes.push({
+          ...scene,
+          image_url: `/placeholder.svg`,
+        })
+      }
+    }
+  }
+
+  return updatedScenes
+}
+
+/**
+ * Generate images for each scene using AI (legacy support)
  */
 export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoScene[]> {
   const updatedScenes = []
@@ -30,7 +102,6 @@ export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoSc
     try {
       console.log(`[v0] Generating image for scene ${scene.id}: ${scene.title}`)
       
-      // Use fal.ai to generate scene images
       const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
       const response = await fetch(`${baseUrl}/api/generate-image`, {
         method: 'POST',
@@ -56,7 +127,6 @@ export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoSc
     } catch (error) {
       console.error(`[v0] Error generating image for scene ${scene.id}:`, error)
       
-      // Use placeholder if generation fails
       updatedScenes.push({
         ...scene,
         image_url: `/placeholder.svg`,

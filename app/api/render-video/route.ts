@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { generateSceneImages } from '@/lib/video/video-generator'
+import { generateSceneVideos, generateSceneImages } from '@/lib/video/video-generator'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
   try {
-    const { resultId } = await request.json()
+    const { resultId, mode = 'images' } = await request.json()
 
     if (!resultId) {
       return NextResponse.json(
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log('[API] Rendering video for result:', resultId)
+    console.log('[API] Rendering video for result:', resultId, 'Mode:', mode)
 
     // Fetch result data from Supabase
     const { data: result, error: dbError } = await supabase
@@ -59,24 +59,41 @@ export async function POST(request: Request) {
       )
     }
 
+    // Fetch project to get clip duration
+    const { data: project } = await supabase
+      .from('projects')
+      .select('clip_duration_seconds')
+      .eq('id', result.project_id)
+      .single()
+
+    const clipDuration = project?.clip_duration_seconds || 5
+
     // Update status to rendering
     await supabase
       .from('results')
       .update({ processing_status: 'rendering' })
       .eq('id', resultId)
 
-    console.log('[API] Generating images for scenes...')
+    let scenesWithContent
+    let successMessage
 
-    // Generate images for all scenes
-    const scenesWithImages = await generateSceneImages(scenes)
+    if (mode === 'videos') {
+      console.log(`[API] Generating ${clipDuration}s AI video clips for scenes (Kling Video)...`)
+      scenesWithContent = await generateSceneVideos(scenes, clipDuration)
+      successMessage = `AI video clips (${clipDuration}s each) generated successfully`
+    } else {
+      console.log('[API] Generating static images for scenes (faster)...')
+      scenesWithContent = await generateSceneImages(scenes)
+      successMessage = 'Scene images generated successfully'
+    }
 
-    console.log('[API] Images generated, updating database...')
+    console.log('[API] Generation complete, updating database...')
 
-    // Update result with scene images
+    // Update result with scene content
     const { error: updateError } = await supabase
       .from('results')
       .update({
-        scenes: scenesWithImages,
+        scenes: scenesWithContent,
         processing_status: 'completed',
       })
       .eq('id', resultId)
@@ -90,9 +107,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Scene images generated successfully',
+      message: successMessage,
       resultId,
-      sceneCount: scenesWithImages.length,
+      sceneCount: scenesWithContent.length,
+      mode,
       status: 'completed',
     })
   } catch (error) {
@@ -100,6 +118,7 @@ export async function POST(request: Request) {
 
     // Update status to error
     try {
+      const resultId = (await request.json()).resultId; // Declare resultId here
       await supabase
         .from('results')
         .update({
