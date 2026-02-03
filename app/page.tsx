@@ -40,15 +40,18 @@ export default function GeneratorPage() {
       })
 
       const text = await response.text()
+      console.log('[v0] API response status:', response.status)
+      console.log('[v0] API response text:', text.substring(0, 500))
       
       if (!response.ok) {
+        let errorMessage = `API Error: ${response.status} - ${response.statusText}`
         try {
           const errorData = JSON.parse(text)
-          throw new Error(errorData.error || 'Failed to generate content')
-        } catch (parseError) {
-          console.error('[v0] API error response:', text)
-          throw new Error(`API Error: ${response.status} - ${response.statusText}`)
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // Use default error message if JSON parsing fails
         }
+        throw new Error(errorMessage)
       }
 
       const data = JSON.parse(text)

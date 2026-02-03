@@ -215,7 +215,9 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
         resultId,
       })
     } catch (error) {
-      console.error('[API] Generation error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[API] Generation error:', errorMessage)
+      console.error('[API] Full error:', error)
 
       // Update result status to error
       if (resultId) {
@@ -224,7 +226,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
             .from('results')
             .update({
               processing_status: 'error',
-              error_message: error instanceof Error ? error.message : 'Unknown error',
+              error_message: errorMessage,
             })
             .eq('id', resultId)
         } catch (updateError) {
@@ -232,8 +234,9 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
         }
       }
 
+      // Return the actual error message for debugging
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to generate content' },
+        { error: errorMessage },
         { status: 500 }
       )
     }
