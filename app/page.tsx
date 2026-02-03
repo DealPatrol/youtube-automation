@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +9,7 @@ import { AlertCircle, Loader2, Sparkles, Zap, TrendingUp } from 'lucide-react'
 
 export default function GeneratorPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
@@ -17,6 +18,17 @@ export default function GeneratorPage() {
   const [platform, setPlatform] = useState('youtube')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Pre-fill from URL params (from trending page)
+  useEffect(() => {
+    const urlTopic = searchParams.get('topic')
+    const urlDescription = searchParams.get('description')
+    const urlPlatform = searchParams.get('platform')
+
+    if (urlTopic) setTopic(urlTopic)
+    if (urlDescription) setDescription(urlDescription)
+    if (urlPlatform) setPlatform(urlPlatform)
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
