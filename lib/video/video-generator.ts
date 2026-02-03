@@ -24,12 +24,12 @@ export interface VideoGenerationOptions {
 /**
  * Generate video clips for each scene using Kling Video API
  */
-export async function generateSceneVideos(scenes: VideoScene[]): Promise<VideoScene[]> {
+export async function generateSceneVideos(scenes: VideoScene[], duration: number = 5): Promise<VideoScene[]> {
   const updatedScenes = []
 
   for (const scene of scenes) {
     try {
-      console.log(`[v0] Generating video for scene ${scene.id}: ${scene.title}`)
+      console.log(`[v0] Generating ${duration}s video for scene ${scene.id}: ${scene.title}`)
       
       // Use fal.ai Kling Video to generate actual video clips
       const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
@@ -39,6 +39,7 @@ export async function generateSceneVideos(scenes: VideoScene[]): Promise<VideoSc
         body: JSON.stringify({
           prompt: `${scene.visual_description}. ${scene.on_screen_text}`,
           sceneId: scene.id,
+          duration: duration,
         }),
       })
 

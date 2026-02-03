@@ -59,6 +59,15 @@ export async function POST(request: Request) {
       )
     }
 
+    // Fetch project to get clip duration
+    const { data: project } = await supabase
+      .from('projects')
+      .select('clip_duration_seconds')
+      .eq('id', result.project_id)
+      .single()
+
+    const clipDuration = project?.clip_duration_seconds || 5
+
     // Update status to rendering
     await supabase
       .from('results')
@@ -69,9 +78,9 @@ export async function POST(request: Request) {
     let successMessage
 
     if (mode === 'videos') {
-      console.log('[API] Generating AI video clips for scenes (Kling Video)...')
-      scenesWithContent = await generateSceneVideos(scenes)
-      successMessage = 'AI video clips generated successfully'
+      console.log(`[API] Generating ${clipDuration}s AI video clips for scenes (Kling Video)...`)
+      scenesWithContent = await generateSceneVideos(scenes, clipDuration)
+      successMessage = `AI video clips (${clipDuration}s each) generated successfully`
     } else {
       console.log('[API] Generating static images for scenes (faster)...')
       scenesWithContent = await generateSceneImages(scenes)
