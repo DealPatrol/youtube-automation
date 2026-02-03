@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,14 +9,28 @@ import { AlertCircle, Loader2, Sparkles, Zap, TrendingUp } from 'lucide-react'
 
 export default function GeneratorPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
-  const [clipDuration, setClipDuration] = useState('5')
+  const [clipDuration, setClipDuration] = useState('15')
   const [tone, setTone] = useState('neutral')
   const [platform, setPlatform] = useState('youtube')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [youtubeClipDuration, setYoutubeClipDuration] = useState('15')
+  const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
+
+  // Pre-fill from URL params (from trending page)
+  useEffect(() => {
+    const urlTopic = searchParams.get('topic')
+    const urlDescription = searchParams.get('description')
+    const urlPlatform = searchParams.get('platform')
+
+    if (urlTopic) setTopic(urlTopic)
+    if (urlDescription) setDescription(urlDescription)
+    if (urlPlatform) setPlatform(urlPlatform)
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,18 +47,29 @@ export default function GeneratorPage() {
           topic,
           description,
           video_length_minutes: parseInt(videoLength),
-          clip_duration_seconds: parseInt(clipDuration),
+          youtube_clip_duration: parseInt(youtubeClipDuration),
+          tiktok_clip_duration: parseInt(tiktokClipDuration),
           tone,
           platform,
         }),
       })
 
+      const text = await response.text()
+      console.log('[v0] API response status:', response.status)
+      console.log('[v0] API response text:', text.substring(0, 500))
+      
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to generate content')
+        let errorMessage = `API Error: ${response.status} - ${response.statusText}`
+        try {
+          const errorData = JSON.parse(text)
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // Use default error message if JSON parsing fails
+        }
+        throw new Error(errorMessage)
       }
 
-      const data = await response.json()
+      const data = JSON.parse(text)
       
       if (!data.resultId) {
         throw new Error('No result ID received from server')
@@ -185,16 +210,41 @@ export default function GeneratorPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="clip-duration" className="text-sm font-bold block">
-                    Clip Duration (for TikTok/Shorts)
+                  <label htmlFor="youtube-clip-duration" className="text-sm font-bold block">
+                    YouTube Clip Duration
                   </label>
                   <select
-                    id="clip-duration"
-                    value={clipDuration}
-                    onChange={(e) => setClipDuration(e.target.value)}
+                    id="youtube-clip-duration"
+                    value={youtubeClipDuration}
+                    onChange={(e) => setYoutubeClipDuration(e.target.value)}
                     disabled={loading}
                     className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
                   >
+                    <option value="0">Auto (Default)</option>
+                    <option value="5">5 seconds</option>
+                    <option value="10">10 seconds</option>
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="45">45 seconds</option>
+                    <option value="60">60 seconds</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    0 = Auto scene length based on content
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="tiktok-clip-duration" className="text-sm font-bold block">
+                    TikTok Clip Duration
+                  </label>
+                  <select
+                    id="tiktok-clip-duration"
+                    value={tiktokClipDuration}
+                    onChange={(e) => setTiktokClipDuration(e.target.value)}
+                    disabled={loading}
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                  >
+                    <option value="0">Auto (Default)</option>
                     <option value="5">5 seconds</option>
                     <option value="10">10 seconds</option>
                     <option value="15">15 seconds</option>
@@ -207,7 +257,9 @@ export default function GeneratorPage() {
                     TikTok optimal: 15-90 sec
                   </p>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="tone" className="text-sm font-bold block">
                     Vibe

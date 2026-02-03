@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { generateSceneVideos, generateSceneImages } from '@/lib/video/video-generator'
+import { generateSceneVideos, generateSceneImages, generateSceneAudio } from '@/lib/video/video-generator'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -86,6 +86,11 @@ export async function POST(request: Request) {
       scenesWithContent = await generateSceneImages(scenes)
       successMessage = 'Scene images generated successfully'
     }
+
+    // Generate AI voiceover for all scenes
+    console.log('[API] Generating AI voiceover for scenes...')
+    scenesWithContent = await generateSceneAudio(scenesWithContent)
+    console.log('[API] Voiceover generation complete')
 
     console.log('[API] Generation complete, updating database...')
 

@@ -159,23 +159,57 @@ export default function ResultsPage() {
     setRenderStatus(mode === 'videos' ? 'Starting AI video generation (this takes 5-10 min)...' : 'Starting image generation (fast)...')
     
     try {
-      const response = await fetch('/api/render-video', {
+      // Step 1: Generate scenes (images/videos + audio)
+      const renderResponse = await fetch('/api/render-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resultId, mode }),
       })
       
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to render video')
+      if (!renderResponse.ok) {
+        const errorData = await renderResponse.json()
+        throw new Error(errorData.error || 'Failed to render scenes')
       }
       
-      const data = await response.json()
+      await renderResponse.json()
+      setRenderStatus('Scenes generated! Now assembling final video...')
       
-      setRenderStatus(data.message || 'Video rendered successfully!')
-      setVideoUrl(data.videoUrl)
+      // Step 2: Assemble final video from all scenes
+      const assembleResponse = await fetch('/api/assemble-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resultId }),
+      })
       
-      // Reload result to get video_url
+      if (!assembleResponse.ok) {
+        const assembleError = await assembleResponse.json()
+        throw new Error(assembleError.error || 'Failed to assemble video')
+      }
+      
+      const assembleData = await assembleResponse.json()
+      
+      setRenderStatus('Video assembled! Generating thumbnail...')
+      
+      // Step 3: Generate thumbnail
+      if (result.thumbnail) {
+        const thumbResponse = await fetch('/api/generate-thumbnail', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: result.thumbnail.text,
+            imagePrompt: result.thumbnail.image_prompt,
+            emotion: result.thumbnail.emotion,
+          }),
+        })
+        
+        if (thumbResponse.ok) {
+          setRenderStatus('Complete! Video and thumbnail ready for YouTube.')
+        }
+      }
+      
+      setVideoUrl(assembleData.videoUrl)
+      
+      // Reload result to get updated data
       await loadResult()
     } catch (err) {
       console.error('[v0] Render error:', err)

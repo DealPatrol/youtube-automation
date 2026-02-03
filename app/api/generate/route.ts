@@ -35,7 +35,15 @@ export async function POST(request: Request) {
       )
     }
 
-    const { topic, description, video_length_minutes, clip_duration_seconds = 5, tone, platform } = await request.json()
+    const { 
+      topic, 
+      description, 
+      video_length_minutes, 
+      youtube_clip_duration = 0, 
+      tiktok_clip_duration = 15, 
+      tone, 
+      platform 
+    } = await request.json()
 
     if (!topic || !video_length_minutes || !tone || !platform) {
       return NextResponse.json(
@@ -58,7 +66,8 @@ export async function POST(request: Request) {
           topic,
           description,
           video_length_minutes,
-          clip_duration_seconds,
+          youtube_clip_duration,
+          tiktok_clip_duration,
           tone,
           platform,
         })
@@ -85,7 +94,12 @@ export async function POST(request: Request) {
       console.log('[API] Result created:', resultId)
 
       // Call OpenAI API to generate content
+      const totalSeconds = video_length_minutes * 60
+      const numScenes = Math.max(Math.floor(totalSeconds / 10), 10) // ~10 seconds per scene, minimum 10 scenes
+      
       const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON (no markdown, no code blocks, no explanations).
+
+CRITICAL: Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute (${totalSeconds} seconds) video. Each scene should be 8-12 seconds long.
 
 Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${platform} video about the given topic:
 
@@ -94,6 +108,7 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     "title": "Compelling video title (under 60 chars)",
     "duration": ${video_length_minutes},
     "content": "2-3 sentence hook and overview of the entire video",
+    "full_narration": "Complete word-for-word voiceover script covering all ${totalSeconds} seconds. Write the ENTIRE narration that will be spoken throughout the video. This should be ${Math.floor(totalSeconds * 2.5)} to ${Math.floor(totalSeconds * 3)} words (approximately 150-180 words per minute of video).",
     "sections": [
       {"time": "0:00", "speaker": "Narrator", "text": "Opening hook to grab attention"},
       {"time": "0:30", "speaker": "Narrator", "text": "What viewers will learn"},
@@ -104,30 +119,19 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     ]
   },
   "scenes": [
-    {
-      "id": 1,
-      "title": "Intro Scene",
-      "start_time": "0:00",
-      "end_time": "1:00",
-      "visual_description": "Detailed visual description of what appears on screen",
-      "on_screen_text": "Any text overlays or graphics that appear"
-    },
-    {
-      "id": 2,
-      "title": "Main Content",
-      "start_time": "1:00",
-      "end_time": "${video_length_minutes - 1}:00",
-      "visual_description": "Detailed visual breakdown",
-      "on_screen_text": "Key points and graphics"
-    },
-    {
-      "id": 3,
-      "title": "Outro",
-      "start_time": "${video_length_minutes - 1}:00",
-      "end_time": "${video_length_minutes}:00",
-      "visual_description": "End screen with CTA",
-      "on_screen_text": "Subscribe and follow prompts"
-    }
+    Generate EXACTLY ${numScenes} scenes. Each scene MUST have:
+    - Unique id (1 to ${numScenes})
+    - Descriptive title
+    - start_time and end_time (covering the full ${totalSeconds} seconds)
+    - Detailed visual_description (for AI image/video generation)
+    - on_screen_text (key message or text overlay)
+    - narration (word-for-word voiceover text for THIS specific scene, 8-12 seconds worth of dialogue)
+    
+    Example for first 3 scenes of ${numScenes} total:
+    {"id": 1, "title": "Opening Hook", "start_time": "0:00", "end_time": "0:10", "visual_description": "Dynamic opening visual", "on_screen_text": "Hook text"},
+    {"id": 2, "title": "Introduction", "start_time": "0:10", "end_time": "0:20", "visual_description": "Topic introduction visual", "on_screen_text": "Intro text"},
+    {"id": 3, "title": "First Point", "start_time": "0:20", "end_time": "0:30", "visual_description": "First main point visual", "on_screen_text": "Point 1"}
+    ... continue until scene ${numScenes} ends at ${totalSeconds} seconds
   ],
   "capcut_steps": ["Step 1: Import and organize footage", "Step 2: Arrange timeline and trim clips", "Step 3: Add text overlays and graphics", "Step 4: Mix audio and add music", "Step 5: Export at optimal settings"],
   "seo": {
@@ -142,11 +146,17 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
   }
 }`
 
-      const userPrompt = `Create a ${video_length_minutes}-minute ${tone} tone ${platform} video outline for: "${topic}"${description ? `\n\nAdditional context: ${description}` : ''}
+      const userPrompt = `Create a ${video_length_minutes}-minute (${totalSeconds} seconds total) ${tone} tone ${platform} video outline for: "${topic}"${description ? `\n\nAdditional context: ${description}` : ''}
+
+CRITICAL REQUIREMENTS:
+- Generate EXACTLY ${numScenes} scenes
+- Each scene should be 8-12 seconds long
+- Scenes must cover the full ${totalSeconds} seconds (start at 0:00, end at ${video_length_minutes}:00)
+- Every scene must have detailed visual_description for AI generation
 
 Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
 
-      console.log('[API] Calling OpenAI API with model gpt-4o')
+      console.log('[API] Calling OpenAI API with model gpt-4o-mini')
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -154,7 +164,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
           Authorization: `Bearer ${openaiKey}`,
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+          model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -215,7 +225,9 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
         resultId,
       })
     } catch (error) {
-      console.error('[API] Generation error:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[API] Generation error:', errorMessage)
+      console.error('[API] Full error:', error)
 
       // Update result status to error
       if (resultId) {
@@ -224,7 +236,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
             .from('results')
             .update({
               processing_status: 'error',
-              error_message: error instanceof Error ? error.message : 'Unknown error',
+              error_message: errorMessage,
             })
             .eq('id', resultId)
         } catch (updateError) {
@@ -232,8 +244,9 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
         }
       }
 
+      // Return the actual error message for debugging
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to generate content' },
+        { error: errorMessage },
         { status: 500 }
       )
     }

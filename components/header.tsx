@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { LayoutDashboard, Zap } from 'lucide-react'
 
 export function Header() {
   const router = useRouter()
@@ -15,8 +16,12 @@ export function Header() {
   return (
     <header className="border-b border-border">
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-xl">
+        <Link href="/" className="font-bold text-xl flex items-center gap-2">
           YouTube AI Builder
+          <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
+            <Zap className="w-3 h-3 mr-1" />
+            Pro
+          </Badge>
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">

@@ -13,15 +13,15 @@ import {
   AlertCircle,
   Plus,
   Video,
+  Clock,
+  BarChart3,
   Calendar,
+  Settings,
   TrendingUp,
   Zap,
-  Clock,
   CheckCircle,
   Youtube,
-  Settings,
   CreditCard,
-  BarChart3,
   Upload,
   PlayCircle,
   PauseCircle,
@@ -68,10 +68,10 @@ export default function DashboardPage() {
     scheduledVideos: 0,
   })
   const [planLimits, setPlanLimits] = useState<PlanLimits>({
-    plan: 'free',
+    plan: 'pro',
     videosUsed: 0,
-    videosLimit: 5,
-    autoPostingEnabled: false,
+    videosLimit: 50,
+    autoPostingEnabled: true,
     multiChannelEnabled: false,
   })
   const [autoPostingActive, setAutoPostingActive] = useState(false)
@@ -176,6 +176,12 @@ export default function DashboardPage() {
               <p className="text-muted-foreground mt-1">Manage your YouTube automation</p>
             </div>
             <div className="flex items-center gap-3">
+              <Link href="/dashboard/trending">
+                <Button variant="outline" size="sm" className="bg-transparent">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Trending
+                </Button>
+              </Link>
               <Link href="/dashboard/settings">
                 <Button variant="outline" size="sm" className="bg-transparent">
                   <Settings className="w-4 h-4 mr-2" />
