@@ -39,18 +39,19 @@ export default function GeneratorPage() {
         }),
       })
 
+      const text = await response.text()
+      
       if (!response.ok) {
         try {
-          const errorData = await response.json()
+          const errorData = JSON.parse(text)
           throw new Error(errorData.error || 'Failed to generate content')
         } catch (parseError) {
-          const text = await response.text()
           console.error('[v0] API error response:', text)
           throw new Error(`API Error: ${response.status} - ${response.statusText}`)
         }
       }
 
-      const data = await response.json()
+      const data = JSON.parse(text)
       
       if (!data.resultId) {
         throw new Error('No result ID received from server')
