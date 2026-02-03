@@ -152,17 +152,17 @@ export default function ResultsPage() {
     }
   }
 
-  async function renderVideo() {
+  async function renderVideo(mode: 'images' | 'videos' = 'images') {
     if (!result) return
     
     setRendering(true)
-    setRenderStatus('Starting video render...')
+    setRenderStatus(mode === 'videos' ? 'Starting AI video generation (this takes 5-10 min)...' : 'Starting image generation (fast)...')
     
     try {
       const response = await fetch('/api/render-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resultId }),
+        body: JSON.stringify({ resultId, mode }),
       })
       
       if (!response.ok) {
@@ -394,10 +394,30 @@ export default function ResultsPage() {
                 <Download className="w-4 h-4 mr-2" />
                 {rendering ? 'Creating...' : 'Download Project'}
               </Button>
+              <Button
+                size="sm"
+                onClick={() => renderVideo('images')}
+                disabled={rendering}
+                variant="outline"
+                className="bg-transparent"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                {rendering ? 'Generating...' : 'Quick Images'}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => renderVideo('videos')}
+                disabled={rendering}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+              >
+                <Film className="w-4 h-4 mr-2" />
+                {rendering ? 'Generating...' : 'AI Video (Pro)'}
+              </Button>
               <Link href={`/editor?projectId=${resultId}`}>
                 <Button
                   size="sm"
-                  className="bg-purple-600 hover:bg-purple-700"
+                  variant="outline"
+                  className="bg-transparent"
                 >
                   <Film className="w-4 h-4 mr-2" />
                   Open in Editor

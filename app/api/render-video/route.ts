@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: Request) {
   try {
-    const { resultId } = await request.json()
+    const { resultId, mode = 'images' } = await request.json()
 
     if (!resultId) {
       return NextResponse.json(
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log('[API] Rendering video for result:', resultId)
+    console.log('[API] Rendering video for result:', resultId, 'Mode:', mode)
 
     // Fetch result data from Supabase
     const { data: result, error: dbError } = await supabase
@@ -65,18 +65,26 @@ export async function POST(request: Request) {
       .update({ processing_status: 'rendering' })
       .eq('id', resultId)
 
-    console.log('[API] Generating video clips for scenes...')
+    let scenesWithContent
+    let successMessage
 
-    // Generate actual video clips for all scenes (falls back to images if needed)
-    const scenesWithVideos = await generateSceneVideos(scenes)
+    if (mode === 'videos') {
+      console.log('[API] Generating AI video clips for scenes (Kling Video)...')
+      scenesWithContent = await generateSceneVideos(scenes)
+      successMessage = 'AI video clips generated successfully'
+    } else {
+      console.log('[API] Generating static images for scenes (faster)...')
+      scenesWithContent = await generateSceneImages(scenes)
+      successMessage = 'Scene images generated successfully'
+    }
 
-    console.log('[API] Video clips generated, updating database...')
+    console.log('[API] Generation complete, updating database...')
 
-    // Update result with scene videos
+    // Update result with scene content
     const { error: updateError } = await supabase
       .from('results')
       .update({
-        scenes: scenesWithVideos,
+        scenes: scenesWithContent,
         processing_status: 'completed',
       })
       .eq('id', resultId)
@@ -90,9 +98,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Scene videos generated successfully',
+      message: successMessage,
       resultId,
-      sceneCount: scenesWithVideos.length,
+      sceneCount: scenesWithContent.length,
+      mode,
       status: 'completed',
     })
   } catch (error) {
