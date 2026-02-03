@@ -8,10 +8,12 @@ export interface VideoScene {
   title: string
   visual_description: string
   on_screen_text: string
+  narration?: string
   start_time?: string
   end_time?: string
   image_url?: string
   video_url?: string
+  audio_url?: string
 }
 
 export interface VideoGenerationOptions {
@@ -19,6 +21,57 @@ export interface VideoGenerationOptions {
   scenes: VideoScene[]
   script: any
   duration?: number
+}
+
+/**
+ * Generate audio voiceover for scenes using OpenAI TTS
+ */
+export async function generateSceneAudio(scenes: VideoScene[]): Promise<VideoScene[]> {
+  const updatedScenes = []
+
+  for (const scene of scenes) {
+    try {
+      // Skip if no narration text
+      if (!scene.narration) {
+        console.log(`[v0] Scene ${scene.id} has no narration, skipping audio generation`)
+        updatedScenes.push(scene)
+        continue
+      }
+
+      console.log(`[v0] Generating voiceover for scene ${scene.id}: ${scene.title}`)
+      
+      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+      const response = await fetch(`${baseUrl}/api/generate-audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          narration: scene.narration,
+          sceneId: scene.id,
+          voice: 'alloy', // Professional voice
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate audio for scene ${scene.id}`)
+      }
+
+      const data = await response.json()
+      
+      updatedScenes.push({
+        ...scene,
+        audio_url: data.audioUrl,
+      })
+
+      console.log(`[v0] Scene ${scene.id} voiceover generated`)
+    } catch (error) {
+      console.error(`[v0] Error generating audio for scene ${scene.id}:`, error)
+      
+      // Continue without audio if generation fails
+      updatedScenes.push(scene)
+    }
+  }
+
+  return updatedScenes
 }
 
 /**
