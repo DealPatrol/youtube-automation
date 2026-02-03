@@ -99,6 +99,7 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     "title": "Compelling video title (under 60 chars)",
     "duration": ${video_length_minutes},
     "content": "2-3 sentence hook and overview of the entire video",
+    "full_narration": "Complete word-for-word voiceover script covering all ${totalSeconds} seconds. Write the ENTIRE narration that will be spoken throughout the video. This should be ${Math.floor(totalSeconds * 2.5)} to ${Math.floor(totalSeconds * 3)} words (approximately 150-180 words per minute of video).",
     "sections": [
       {"time": "0:00", "speaker": "Narrator", "text": "Opening hook to grab attention"},
       {"time": "0:30", "speaker": "Narrator", "text": "What viewers will learn"},
@@ -115,6 +116,7 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     - start_time and end_time (covering the full ${totalSeconds} seconds)
     - Detailed visual_description (for AI image/video generation)
     - on_screen_text (key message or text overlay)
+    - narration (word-for-word voiceover text for THIS specific scene, 8-12 seconds worth of dialogue)
     
     Example for first 3 scenes of ${numScenes} total:
     {"id": 1, "title": "Opening Hook", "start_time": "0:00", "end_time": "0:10", "visual_description": "Dynamic opening visual", "on_screen_text": "Hook text"},
