@@ -35,7 +35,15 @@ export async function POST(request: Request) {
       )
     }
 
-    const { topic, description, video_length_minutes, clip_duration_seconds = 5, tone, platform } = await request.json()
+    const { 
+      topic, 
+      description, 
+      video_length_minutes, 
+      youtube_clip_duration = 0, 
+      tiktok_clip_duration = 15, 
+      tone, 
+      platform 
+    } = await request.json()
 
     if (!topic || !video_length_minutes || !tone || !platform) {
       return NextResponse.json(
@@ -58,7 +66,8 @@ export async function POST(request: Request) {
           topic,
           description,
           video_length_minutes,
-          clip_duration_seconds,
+          youtube_clip_duration,
+          tiktok_clip_duration,
           tone,
           platform,
         })

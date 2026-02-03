@@ -13,11 +13,13 @@ export default function GeneratorPage() {
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
-  const [clipDuration, setClipDuration] = useState('5')
+  const [clipDuration, setClipDuration] = useState('15')
   const [tone, setTone] = useState('neutral')
   const [platform, setPlatform] = useState('youtube')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [youtubeClipDuration, setYoutubeClipDuration] = useState('15')
+  const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
 
   // Pre-fill from URL params (from trending page)
   useEffect(() => {
@@ -45,7 +47,8 @@ export default function GeneratorPage() {
           topic,
           description,
           video_length_minutes: parseInt(videoLength),
-          clip_duration_seconds: parseInt(clipDuration),
+          youtube_clip_duration: parseInt(youtubeClipDuration),
+          tiktok_clip_duration: parseInt(tiktokClipDuration),
           tone,
           platform,
         }),
@@ -207,16 +210,41 @@ export default function GeneratorPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="clip-duration" className="text-sm font-bold block">
-                    Clip Duration (for TikTok/Shorts)
+                  <label htmlFor="youtube-clip-duration" className="text-sm font-bold block">
+                    YouTube Clip Duration
                   </label>
                   <select
-                    id="clip-duration"
-                    value={clipDuration}
-                    onChange={(e) => setClipDuration(e.target.value)}
+                    id="youtube-clip-duration"
+                    value={youtubeClipDuration}
+                    onChange={(e) => setYoutubeClipDuration(e.target.value)}
                     disabled={loading}
                     className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
                   >
+                    <option value="0">Auto (Default)</option>
+                    <option value="5">5 seconds</option>
+                    <option value="10">10 seconds</option>
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="45">45 seconds</option>
+                    <option value="60">60 seconds</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    0 = Auto scene length based on content
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="tiktok-clip-duration" className="text-sm font-bold block">
+                    TikTok Clip Duration
+                  </label>
+                  <select
+                    id="tiktok-clip-duration"
+                    value={tiktokClipDuration}
+                    onChange={(e) => setTiktokClipDuration(e.target.value)}
+                    disabled={loading}
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                  >
+                    <option value="0">Auto (Default)</option>
                     <option value="5">5 seconds</option>
                     <option value="10">10 seconds</option>
                     <option value="15">15 seconds</option>
@@ -229,7 +257,9 @@ export default function GeneratorPage() {
                     TikTok optimal: 15-90 sec
                   </p>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="tone" className="text-sm font-bold block">
                     Vibe
