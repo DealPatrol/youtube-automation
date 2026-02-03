@@ -7,27 +7,27 @@ Add these to your v0 Vars section (click "Vars" in the left sidebar):
 ### Required Core Variables
 
 **Supabase:**
-```
+\`\`\`
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-```
+\`\`\`
 
 **YouTube Integration:**
-```
+\`\`\`
 YOUTUBE_CLIENT_ID=your_youtube_client_id
 YOUTUBE_CLIENT_SECRET=your_youtube_client_secret
 NEXTAUTH_URL=https://your-domain.com (or http://localhost:3000 for local dev)
-```
+\`\`\`
 
 **OpenAI (for video script generation):**
-```
+\`\`\`
 OPENAI_API_KEY=your_openai_api_key
-```
+\`\`\`
 
 ### Optional Variables
 
 **Firebase (if using for auth/storage):**
-```
+\`\`\`
 NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
@@ -39,24 +39,24 @@ FIREBASE_PRIVATE_KEY_ID=your_firebase_private_key_id
 FIREBASE_PRIVATE_KEY=your_firebase_private_key
 FIREBASE_CLIENT_EMAIL=your_firebase_client_email
 FIREBASE_CLIENT_ID=your_firebase_client_id
-```
+\`\`\`
 
 **Stripe (for payments):**
-```
+\`\`\`
 STRIPE_PRICE_ID_PRO=your_stripe_price_id
-```
+\`\`\`
 
 **Cron Jobs (for scheduled uploads):**
-```
+\`\`\`
 CRON_SECRET=your_secure_random_string
-```
+\`\`\`
 
 **Video Processing:**
-```
+\`\`\`
 FASTAPI_URL=http://localhost:8000 (for local dev) or your-backend-url
 NEXT_PUBLIC_API_URL=http://localhost:8000
 UNSPLASH_ACCESS_KEY=your_unsplash_api_key
-```
+\`\`\`
 
 ## How to Get Each Variable
 
@@ -104,7 +104,7 @@ UNSPLASH_ACCESS_KEY=your_unsplash_api_key
 
 If running locally, create a `.env.local` file in the root directory:
 
-```bash
+\`\`\`bash
 # Core
 NEXT_PUBLIC_SUPABASE_URL=your_url
 SUPABASE_SERVICE_ROLE_KEY=your_key
@@ -123,7 +123,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 # Optional - Cron Secret
 CRON_SECRET=your_secure_random_string
-```
+\`\`\`
 
 ## Production Deployment (Vercel)
 
@@ -161,7 +161,7 @@ CRON_SECRET=your_secure_random_string
 
 Use these endpoints to verify variables are set correctly:
 
-```bash
+\`\`\`bash
 # Test Supabase connection
 curl -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   $NEXT_PUBLIC_SUPABASE_URL/rest/v1/results
@@ -169,7 +169,7 @@ curl -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
 # Test OpenAI connection
 curl -H "Authorization: Bearer $OPENAI_API_KEY" \
   https://api.openai.com/v1/models
-```
+\`\`\`
 
 ## Next Steps
 

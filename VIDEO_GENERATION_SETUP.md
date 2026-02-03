@@ -5,27 +5,27 @@
 To enable video generation in your YouTube AI Builder app, you need the following environment variables:
 
 ### 1. OpenAI (Script Generation)
-```
+\`\`\`
 OPENAI_API_KEY=sk-...
-```
+\`\`\`
 **Get it from:** https://platform.openai.com/api-keys
 - Used for generating video scripts, scenes, SEO data, and thumbnails
 - Cost: ~$0.01-0.05 per video generation
 
 ### 2. fal.ai (Image Generation)
-```
+\`\`\`
 FAL_KEY=...
-```
+\`\`\`
 **Get it from:** https://fal.ai/dashboard/keys
 - Used for generating scene images from visual descriptions
 - Free tier: 100 requests/month
 - Cost: ~$0.003 per image after free tier
 
 ### 3. Supabase (Database)
-```
+\`\`\`
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
+\`\`\`
 **Get it from:** Your Supabase project settings
 - Already configured if you have Supabase integration
 
