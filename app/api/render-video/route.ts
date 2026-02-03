@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { generateSceneImages } from '@/lib/video/video-generator'
+import { generateSceneVideos, generateSceneImages } from '@/lib/video/video-generator'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -65,18 +65,18 @@ export async function POST(request: Request) {
       .update({ processing_status: 'rendering' })
       .eq('id', resultId)
 
-    console.log('[API] Generating images for scenes...')
+    console.log('[API] Generating video clips for scenes...')
 
-    // Generate images for all scenes
-    const scenesWithImages = await generateSceneImages(scenes)
+    // Generate actual video clips for all scenes (falls back to images if needed)
+    const scenesWithVideos = await generateSceneVideos(scenes)
 
-    console.log('[API] Images generated, updating database...')
+    console.log('[API] Video clips generated, updating database...')
 
-    // Update result with scene images
+    // Update result with scene videos
     const { error: updateError } = await supabase
       .from('results')
       .update({
-        scenes: scenesWithImages,
+        scenes: scenesWithVideos,
         processing_status: 'completed',
       })
       .eq('id', resultId)
@@ -90,9 +90,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Scene images generated successfully',
+      message: 'Scene videos generated successfully',
       resultId,
-      sceneCount: scenesWithImages.length,
+      sceneCount: scenesWithVideos.length,
       status: 'completed',
     })
   } catch (error) {
@@ -100,6 +100,7 @@ export async function POST(request: Request) {
 
     // Update status to error
     try {
+      const resultId = (await request.json()).resultId; // Declare resultId here
       await supabase
         .from('results')
         .update({
