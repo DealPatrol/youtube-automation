@@ -1,0 +1,34 @@
+{
+  "agents": [
+    {
+      "name": "SEO Optimizer",
+      "role": "automation",
+      "description": "Optimizes titles, descriptions, and tags for search and discovery.",
+      "_file": "agents/SEO-Optimizer.json"
+    },
+    {
+      "name": "Script Writer",
+      "role": "automation",
+      "description": "Turns outlines or bullet points into full video scripts.",
+      "_file": "agents/Script-Writer.json"
+    },
+    {
+      "name": "Thumbnail Ideator",
+      "role": "automation",
+      "description": "Generates thumbnail concepts, text hooks, and visual directions.",
+      "_file": "agents/Thumbnail-Ideator.json"
+    },
+    {
+      "name": "Trend Scout",
+      "role": "ops_metrics",
+      "description": "Finds emerging topics and formats to inform content strategy.",
+      "_file": "agents/Trend-Scout.json"
+    },
+    {
+      "name": "Video Assembly",
+      "role": "automation",
+      "description": "Combines all steps of video creation into a final assembled video output.",
+      "_file": "agents/Video-Assembly.json"
+    }
+  ]
+}
