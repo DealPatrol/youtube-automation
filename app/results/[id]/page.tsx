@@ -1,14 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { useAuth } from '@/lib/auth/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
-import { AlertCircle, Copy, Download, ArrowLeft, Upload, ExternalLink, Film, Zap } from 'lucide-react'
+import { AlertCircle, Copy, Download, ArrowLeft, Upload, ExternalLink, Film, Zap, Loader2 } from 'lucide-react'
 import ScriptTab from '@/components/tabs/ScriptTab'
 import ScenesTab from '@/components/tabs/ScenesTab'
 import CapCutTab from '@/components/tabs/CapCutTab'
@@ -38,7 +39,9 @@ interface ResultData {
 
 export default function ResultsPage() {
   const params = useParams()
+  const router = useRouter()
   const resultId = params.id as string
+  const { user, loading: authLoading } = useAuth()
   const [result, setResult] = useState<ResultData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -53,8 +56,14 @@ export default function ResultsPage() {
   const [job, setJob] = useState<any | null>(null)
 
   useEffect(() => {
-    loadResult()
-  }, [resultId])
+    if (!authLoading && !user) {
+      router.replace('/login')
+      return
+    }
+    if (user) {
+      loadResult()
+    }
+  }, [resultId, user, authLoading, router])
 
   async function loadResult() {
     if (!supabase) {
@@ -314,6 +323,16 @@ export default function ResultsPage() {
   }
 
   const renderVideoFunction = startVideoRender; // Declare the renderVideo variable
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!user) return null
 
   if (loading) {
     return (

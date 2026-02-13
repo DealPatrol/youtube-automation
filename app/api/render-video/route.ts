@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     // Fetch result data from Supabase
     const { data: result, error: dbError } = await supabase
       .from('results')
-      .select('*')
+      .select('*, projects(user_id)')
       .eq('id', resultId)
       .single()
 
