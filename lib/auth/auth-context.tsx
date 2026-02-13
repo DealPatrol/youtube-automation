@@ -24,6 +24,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Check localStorage for demo user
+    function checkDemoUser() {
+      try {
+        const storedUser = localStorage.getItem('demoUser')
+        if (storedUser) {
+          setUser(JSON.parse(storedUser))
+          setLoading(false)
+          return true
+        }
+      } catch {
+        // Ignore parse errors
+      }
+      return false
+    }
+
+    // First check localStorage
+    if (checkDemoUser()) return
+
     // Try to use Firebase if available
     try {
       const { auth } = require('@/lib/firebase/config')
@@ -37,18 +55,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return () => unsubscribe()
     } catch (err) {
       console.log('[v0] Firebase unavailable, using fallback auth')
-      
-      // Fallback: check localStorage for demo user
+      setLoading(false)
+    }
+  }, [])
+
+  // Listen for storage changes
+  useEffect(() => {
+    function handleStorageChange() {
       try {
         const storedUser = localStorage.getItem('demoUser')
         if (storedUser) {
           setUser(JSON.parse(storedUser))
+        } else {
+          setUser(null)
         }
       } catch {
-        // Ignore parse errors
+        // Ignore errors
       }
-      
-      setLoading(false)
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('storage', handleStorageChange)
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('storage', handleStorageChange)
     }
   }, [])
 
@@ -71,11 +101,12 @@ export async function loginDemo() {
     displayName: 'Demo User',
   }
   localStorage.setItem('demoUser', JSON.stringify(demoUser))
-  // Trigger a reload so the context picks up the change
-  window.location.reload()
+  // Update window to trigger a state refresh
+  window.dispatchEvent(new Event('storage'))
 }
 
 export async function logoutDemo() {
   localStorage.removeItem('demoUser')
-  window.location.reload()
+  window.dispatchEvent(new Event('storage'))
+  window.location.href = '/login'
 }

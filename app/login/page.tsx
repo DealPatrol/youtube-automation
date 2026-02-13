@@ -74,6 +74,8 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await loginDemo()
+      // Navigate to home after setting demo user
+      setTimeout(() => router.push('/'), 100)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Demo mode failed')
       setLoading(false)
