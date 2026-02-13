@@ -68,6 +68,28 @@ export default function LoginPage() {
     }
   }
 
+  async function handleDemoMode() {
+    setError('')
+    setLoading(true)
+
+    try {
+      const result = await signIn('demo@youtube-ai.com', 'DemoPassword123!')
+      if (result.error) {
+        // Create demo account if it doesn't exist
+        const createResult = await signUp('demo@youtube-ai.com', 'DemoPassword123!', 'Demo User')
+        if (createResult.error) {
+          setError('Demo mode unavailable')
+          return
+        }
+      }
+      router.replace('/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Demo mode failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -123,6 +145,19 @@ export default function LoginPage() {
               </svg>
             )}
             Continue with Google
+          </Button>
+
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full"
+            onClick={handleDemoMode}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : null}
+            Demo Mode
           </Button>
 
           <div className="relative">
