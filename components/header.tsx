@@ -1,54 +1,58 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { LayoutDashboard, Zap } from 'lucide-react'
+import { LayoutDashboard, Plus, LogOut, Loader2 } from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
+import { signOut } from '@/lib/auth/actions'
 
 export function Header() {
-  const router = useRouter()
   const pathname = usePathname()
+  const { user, loading } = useAuth()
 
-  // Hide header on home page
-  if (pathname === '/') return null
+  if (pathname === '/login') return null
 
   return (
-    <header className="border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-xl flex items-center gap-2">
+    <header className="border-b border-border bg-card/50">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <Link href="/" className="font-bold text-lg">
           YouTube AI Builder
-          <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
-            <Zap className="w-3 h-3 mr-1" />
-            Pro
-          </Badge>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1">
-          <Button
-            variant="ghost"
-            asChild
-            className="gap-2"
-          >
-            <Link href="/">
-              <LayoutDashboard className="w-4 h-4" />
-              Home
-            </Link>
-          </Button>
+        <nav className="flex items-center gap-2">
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          ) : user ? (
+            <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/dashboard">
+                  <LayoutDashboard className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link href="/">
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">New Video</span>
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut()}
+                className="text-muted-foreground"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="sr-only">Sign out</span>
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" asChild>
+              <Link href="/login">Sign In</Link>
+            </Button>
+          )}
         </nav>
-
-        {/* Mobile menu */}
-        <div className="md:hidden flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-          >
-            <Link href="/">
-              <LayoutDashboard className="w-4 h-4" />
-            </Link>
-          </Button>
-        </div>
       </div>
     </header>
   )

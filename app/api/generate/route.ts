@@ -42,7 +42,8 @@ export async function POST(request: Request) {
       youtube_clip_duration = 0, 
       tiktok_clip_duration = 15, 
       tone, 
-      platform 
+      platform,
+      user_id,
     } = await request.json()
 
     if (!topic || !video_length_minutes || !tone || !platform) {
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const userId = 'anonymous-user'
+    const userId = user_id || 'anonymous-user'
     let projectId = ''
     let resultId = ''
 
