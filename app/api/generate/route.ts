@@ -4,14 +4,19 @@ import { NextResponse } from 'next/server'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase credentials')
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey)
-
 export async function POST(request: Request) {
   try {
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json(
+        {
+          error:
+            'Supabase credentials not configured. Please set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your environment.',
+        },
+        { status: 500 }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
     const openaiKey = process.env.OPENAI_API_KEY?.trim()
     
     console.log('[API] OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
@@ -35,7 +40,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const { 
+    const {
       topic, 
       description, 
       video_length_minutes, 
@@ -94,12 +99,23 @@ export async function POST(request: Request) {
       console.log('[API] Result created:', resultId)
 
       // Call OpenAI API to generate content
-      const totalSeconds = video_length_minutes * 60
-      const numScenes = Math.max(Math.floor(totalSeconds / 10), 10) // ~10 seconds per scene, minimum 10 scenes
+    const totalSeconds = video_length_minutes * 60
+    const requestedSceneSeconds =
+      platform === 'tiktok' && tiktok_clip_duration > 0
+        ? tiktok_clip_duration
+        : youtube_clip_duration > 0
+          ? youtube_clip_duration
+          : 10
+    let numScenes = Math.max(Math.floor(totalSeconds / requestedSceneSeconds), 10)
+    const maxScenes = 30
+    if (numScenes > maxScenes) {
+      numScenes = maxScenes
+    }
+    const avgSceneSeconds = Math.max(Math.round(totalSeconds / numScenes), 8)
       
       const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON (no markdown, no code blocks, no explanations).
 
-CRITICAL: Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute (${totalSeconds} seconds) video. Each scene should be 8-12 seconds long.
+CRITICAL: Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute (${totalSeconds} seconds) video. Each scene should be about ${avgSceneSeconds} seconds long.
 
 Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${platform} video about the given topic:
 
@@ -108,7 +124,6 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     "title": "Compelling video title (under 60 chars)",
     "duration": ${video_length_minutes},
     "content": "2-3 sentence hook and overview of the entire video",
-    "full_narration": "Complete word-for-word voiceover script covering all ${totalSeconds} seconds. Write the ENTIRE narration that will be spoken throughout the video. This should be ${Math.floor(totalSeconds * 2.5)} to ${Math.floor(totalSeconds * 3)} words (approximately 150-180 words per minute of video).",
     "sections": [
       {"time": "0:00", "speaker": "Narrator", "text": "Opening hook to grab attention"},
       {"time": "0:30", "speaker": "Narrator", "text": "What viewers will learn"},
@@ -125,7 +140,7 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     - start_time and end_time (covering the full ${totalSeconds} seconds)
     - Detailed visual_description (for AI image/video generation)
     - on_screen_text (key message or text overlay)
-    - narration (word-for-word voiceover text for THIS specific scene, 8-12 seconds worth of dialogue)
+    - narration (word-for-word voiceover text for THIS specific scene, about ${avgSceneSeconds} seconds worth of dialogue)
     
     Example for first 3 scenes of ${numScenes} total:
     {"id": 1, "title": "Opening Hook", "start_time": "0:00", "end_time": "0:10", "visual_description": "Dynamic opening visual", "on_screen_text": "Hook text"},
@@ -150,7 +165,7 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
 
 CRITICAL REQUIREMENTS:
 - Generate EXACTLY ${numScenes} scenes
-- Each scene should be 8-12 seconds long
+- Each scene should be about ${avgSceneSeconds} seconds long
 - Scenes must cover the full ${totalSeconds} seconds (start at 0:00, end at ${video_length_minutes}:00)
 - Every scene must have detailed visual_description for AI generation
 
@@ -165,12 +180,13 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
         },
         body: JSON.stringify({
           model: 'gpt-4o-mini',
+          response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.7,
-          max_tokens: 4000,
+          max_tokens: 6000,
         }),
       })
 
