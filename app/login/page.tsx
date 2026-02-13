@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { signIn, signUp, signInWithGoogle } from '@/lib/auth/actions'
 import { useAuth } from '@/lib/auth/auth-context'
+import { loginDemo } from '@/lib/auth/auth-context'
 import { useEffect } from 'react'
 
 export default function LoginPage() {
@@ -71,21 +72,10 @@ export default function LoginPage() {
   async function handleDemoMode() {
     setError('')
     setLoading(true)
-
     try {
-      const result = await signIn('demo@youtube-ai.com', 'DemoPassword123!')
-      if (result.error) {
-        // Create demo account if it doesn't exist
-        const createResult = await signUp('demo@youtube-ai.com', 'DemoPassword123!', 'Demo User')
-        if (createResult.error) {
-          setError('Demo mode unavailable')
-          return
-        }
-      }
-      router.replace('/')
+      await loginDemo()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Demo mode failed')
-    } finally {
       setLoading(false)
     }
   }

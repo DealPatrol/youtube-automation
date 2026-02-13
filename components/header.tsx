@@ -6,12 +6,21 @@ import { Button } from '@/components/ui/button'
 import { LayoutDashboard, Plus, LogOut, Loader2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth/auth-context'
 import { signOut } from '@/lib/auth/actions'
+import { logoutDemo } from '@/lib/auth/auth-context'
 
 export function Header() {
   const pathname = usePathname()
   const { user, loading } = useAuth()
 
   if (pathname === '/login') return null
+
+  async function handleLogout() {
+    try {
+      await signOut()
+    } catch {
+      await logoutDemo()
+    }
+  }
 
   return (
     <header className="border-b border-border bg-card/50">
@@ -40,7 +49,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => signOut()}
+                onClick={handleLogout}
                 className="text-muted-foreground"
               >
                 <LogOut className="w-4 h-4" />
