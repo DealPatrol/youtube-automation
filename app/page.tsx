@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, Loader2, Sparkles, Zap, TrendingUp } from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
 
 export default function GeneratorPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user, loading: authLoading } = useAuth()
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
@@ -20,6 +22,13 @@ export default function GeneratorPage() {
   const [error, setError] = useState('')
   const [youtubeClipDuration, setYoutubeClipDuration] = useState('15')
   const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login')
+    }
+  }, [user, authLoading, router])
 
   // Pre-fill from URL params (from trending page)
   useEffect(() => {
@@ -51,6 +60,7 @@ export default function GeneratorPage() {
           tiktok_clip_duration: parseInt(tiktokClipDuration),
           tone,
           platform,
+          user_id: user?.uid,
         }),
       })
 
@@ -83,6 +93,16 @@ export default function GeneratorPage() {
       setLoading(false)
     }
   }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!user) return null
 
   return (
     <div className="min-h-screen bg-background">

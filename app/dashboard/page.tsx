@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
@@ -25,7 +26,9 @@ import {
   Upload,
   PlayCircle,
   PauseCircle,
+  Loader2,
 } from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -58,6 +61,8 @@ interface PlanLimits {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -77,16 +82,23 @@ export default function DashboardPage() {
   const [autoPostingActive, setAutoPostingActive] = useState(false)
 
   useEffect(() => {
-    loadDashboardData()
-  }, [])
+    if (!authLoading && !user) {
+      router.replace('/login')
+      return
+    }
+    if (user) {
+      loadDashboardData()
+    }
+  }, [user, authLoading, router])
 
   async function loadDashboardData() {
     try {
       // Load projects from Supabase
-      if (supabase) {
+      if (supabase && user) {
         const { data: projectsData, error: projectsError } = await supabase
           .from('projects')
           .select('*')
+          .eq('user_id', user.uid)
           .order('created_at', { ascending: false })
           .limit(10)
 
@@ -163,6 +175,14 @@ export default function DashboardPage() {
     } catch {
       return 'Unknown'
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
