@@ -4,26 +4,25 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase credentials')
-}
+let supabase: any = null
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+if (supabaseUrl && supabaseKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey)
+  } catch (error) {
+    console.warn('[API] Failed to initialize Supabase:', error)
+  }
+} else {
+  console.warn('[API] Supabase credentials not configured')
+}
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const code = searchParams.get('code')
-    const error = searchParams.get('error')
-    const state = searchParams.get('state') // OAuth state parameter contains resultId
-    const resultId = state || 'unknown'
-
-    // Validate required environment variables
-    const clientId = process.env.YOUTUBE_CLIENT_ID
-    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
-    if (!clientId || !clientSecret) {
-      console.error('[OAuth] Missing YouTube credentials - YOUTUBE_CLIENT_ID or YOUTUBE_CLIENT_SECRET not set')
-      throw new Error('Server configuration error: Missing YouTube credentials')
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Supabase not configured' },
+        { status: 500 }
+      )
     }
 
     if (error) {
