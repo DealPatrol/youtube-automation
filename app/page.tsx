@@ -75,11 +75,19 @@ export default function GeneratorPage() {
           errorMessage = errorData.error || errorMessage
         } catch {
           // Use default error message if JSON parsing fails
+          errorMessage = text || errorMessage
         }
         throw new Error(errorMessage)
       }
 
-      const data = JSON.parse(text)
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (parseErr) {
+        console.error('[v0] JSON parse error:', parseErr)
+        console.error('[v0] Response text:', text)
+        throw new Error(`Invalid response from server: ${text.substring(0, 100)}`)
+      }
       
       if (!data.resultId) {
         throw new Error('No result ID received from server')
