@@ -1,54 +1,76 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { LayoutDashboard, Zap } from 'lucide-react'
+import { Sparkles, Menu } from 'lucide-react'
+import { useState } from 'react'
 
 export function Header() {
-  const router = useRouter()
   const pathname = usePathname()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Hide header on home page
-  if (pathname === '/') return null
+  // Show full header only on non-home pages
+  const isHomePage = pathname === '/'
 
-  return (
-    <header className="border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" className="font-bold text-xl flex items-center gap-2">
-          YouTube AI Builder
-          <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0">
-            <Zap className="w-3 h-3 mr-1" />
-            Pro
-          </Badge>
-        </Link>
-
-        <nav className="hidden md:flex items-center gap-1">
-          <Button
-            variant="ghost"
-            asChild
-            className="gap-2"
-          >
-            <Link href="/">
-              <LayoutDashboard className="w-4 h-4" />
-              Home
-            </Link>
-          </Button>
-        </nav>
+  if (isHomePage) {
+    return (
+      <header className="border-b border-border sticky top-0 z-50 bg-background/80 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition">
+            <Sparkles className="w-5 h-5 text-accent" />
+            YouTube Builder
+          </Link>
+          <nav className="hidden md:flex items-center gap-1">
+            <Button variant="ghost" asChild>
+              <Link href="#features">Features</Link>
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="/pricing">Pricing</Link>
+            </Button>
+          </nav>
+          <div className="md:hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
 
         {/* Mobile menu */}
-        <div className="md:hidden flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-          >
-            <Link href="/">
-              <LayoutDashboard className="w-4 h-4" />
-            </Link>
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border bg-card p-4 space-y-2">
+            <Button variant="ghost" asChild className="w-full justify-start">
+              <Link href="#features">Features</Link>
+            </Button>
+            <Button variant="ghost" asChild className="w-full justify-start">
+              <Link href="/pricing">Pricing</Link>
+            </Button>
+          </div>
+        )}
+      </header>
+    )
+  }
+
+  // App header for dashboard/editor
+  return (
+    <header className="border-b border-border sticky top-0 z-50 bg-background/80 backdrop-blur-sm">
+      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition">
+          <Sparkles className="w-5 h-5 text-accent" />
+          YouTube Builder
+        </Link>
+        <nav className="hidden md:flex items-center gap-1">
+          <Button variant="ghost" asChild>
+            <Link href="/">New Video</Link>
           </Button>
-        </div>
+          <Button variant="ghost" asChild>
+            <Link href="/dashboard">Dashboard</Link>
+          </Button>
+        </nav>
       </div>
     </header>
   )

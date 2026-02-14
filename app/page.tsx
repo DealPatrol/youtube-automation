@@ -1,50 +1,35 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, Loader2, Sparkles, Zap, TrendingUp } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { Sparkles, Zap, Palette, BookOpen, Music, BarChart3 } from 'lucide-react'
 
-export default function GeneratorPage() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [topic, setTopic] = useState('')
+export default function Home() {
+  const [videoTopic, setVideoTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
-  const [clipDuration, setClipDuration] = useState('15')
   const [tone, setTone] = useState('neutral')
   const [platform, setPlatform] = useState('youtube')
+  const [youtubeClipDuration, setYoutubeClipDuration] = useState('0')
+  const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [youtubeClipDuration, setYoutubeClipDuration] = useState('15')
-  const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
-
-  // Pre-fill from URL params (from trending page)
-  useEffect(() => {
-    const urlTopic = searchParams.get('topic')
-    const urlDescription = searchParams.get('description')
-    const urlPlatform = searchParams.get('platform')
-
-    if (urlTopic) setTopic(urlTopic)
-    if (urlDescription) setDescription(urlDescription)
-    if (urlPlatform) setPlatform(urlPlatform)
-  }, [searchParams])
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     setLoading(true)
+    setError('')
 
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic,
+          topic: videoTopic,
           description,
           video_length_minutes: parseInt(videoLength),
           youtube_clip_duration: parseInt(youtubeClipDuration),
@@ -55,331 +40,219 @@ export default function GeneratorPage() {
       })
 
       const text = await response.text()
-      console.log('[v0] API response status:', response.status)
-      console.log('[v0] API response text:', text.substring(0, 500))
-      
       if (!response.ok) {
-        let errorMessage = `API Error: ${response.status} - ${response.statusText}`
         try {
           const errorData = JSON.parse(text)
-          errorMessage = errorData.error || errorMessage
+          throw new Error(errorData.error || 'Failed to generate video')
         } catch {
-          // Use default error message if JSON parsing fails
+          throw new Error('Failed to generate video')
         }
-        throw new Error(errorMessage)
       }
 
       const data = JSON.parse(text)
-      
-      if (!data.resultId) {
-        throw new Error('No result ID received from server')
+
+      if (!data.jobId) {
+        throw new Error('No job ID received from server')
       }
 
-      router.push(`/results/${data.resultId}`)
+      if (data.status === 'completed') {
+        setError('')
+        router.push(`/results/${data.jobId}`)
+        return
+      }
+
+      let jobStatus = data.status
+      let pollCount = 0
+      const maxPolls = 300
+
+      while (jobStatus === 'queued' && pollCount < maxPolls) {
+        setError(`Generating video... (${pollCount}s)`)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+        const statusResponse = await fetch('/api/job-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: data.jobId }),
+        })
+
+        const statusData = await statusResponse.json()
+        jobStatus = statusData.status
+
+        if (jobStatus === 'completed') {
+          setError('')
+          router.push(`/results/${data.jobId}`)
+          return
+        } else if (jobStatus === 'failed') {
+          throw new Error(statusData.error || 'Video generation failed')
+        }
+
+        pollCount++
+      }
+
+      if (pollCount >= maxPolls) {
+        throw new Error('Video generation timed out.')
+      }
     } catch (err) {
-      console.error('[v0] Generation error:', err)
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setError(errorMessage)
+      console.error('Error:', errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
+  const features = [
+    {
+      icon: Sparkles,
+      title: 'AI Script Generation',
+      description: 'Generate compelling video scripts tailored to your topic and platform',
+    },
+    {
+      icon: Palette,
+      title: 'Scene Planning',
+      description: 'Get detailed scene breakdowns with visual descriptions and narration',
+    },
+    {
+      icon: Music,
+      title: 'Auto Captions',
+      description: 'Automatically generate captions optimized for YouTube and social media',
+    },
+    {
+      icon: BookOpen,
+      title: 'SEO Optimization',
+      description: 'Receive SEO-optimized titles, descriptions, and tags for better reach',
+    },
+    {
+      icon: Zap,
+      title: 'Thumbnail Design',
+      description: 'Get AI-generated thumbnail concepts with eye-catching text overlays',
+    },
+    {
+      icon: BarChart3,
+      title: 'Platform Specific',
+      description: 'Optimize for YouTube, TikTok, Instagram and more with one click',
+    },
+  ]
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-glow opacity-20 blur-3xl" />
-        <div className="relative max-w-5xl mx-auto px-4 py-20">
-          <div className="text-center space-y-6">
-            <div className="inline-block">
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-semibold text-sm">
-                <Sparkles className="w-4 h-4" />
-                AI-Powered Video Creation
-              </span>
-            </div>
-            <h1 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              Your Video Script in 30 Seconds
+      <section className="relative px-6 py-20 md:py-32">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-12 text-center">
+            <h1 className="text-5xl font-bold md:text-6xl tracking-tight mb-4 text-balance">
+              Create YouTube Videos with AI
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              From idea to production-ready outline. Scripts, scenes, SEO, thumbnails – everything you need to create viral content.
+            <p className="text-lg text-muted-foreground md:text-xl mb-8 max-w-3xl mx-auto text-balance">
+              Generate scripts, scenes, SEO metadata, and thumbnails for your YouTube videos in seconds. Powered by OpenAI.
             </p>
-            <div className="flex gap-4 justify-center flex-wrap">
-              <Button size="lg" className="text-base" onClick={() => document.getElementById('generator')?.scrollIntoView({ behavior: 'smooth' })}>
-                Start Creating
-              </Button>
-              <Button size="lg" variant="outline" className="text-base bg-transparent">
-                See Examples
-              </Button>
-            </div>
           </div>
-        </div>
-      </section>
 
-      {/* Generator Form */}
-      <section id="generator" className="max-w-3xl mx-auto px-4 py-12">
-        <Card className="glass-effect border border-primary/20 shadow-xl">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-3xl">Create Your Video</CardTitle>
-            <CardDescription>
-              Tell us about your video and we'll generate everything you need
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          {/* Quick Form */}
+          <Card className="border-border bg-card p-8 max-w-2xl mx-auto mb-20">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <div className="flex items-center gap-2 p-3 bg-secondary/10 text-secondary rounded-lg text-sm">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
               <div className="space-y-2">
-                <label htmlFor="topic" className="text-sm font-bold block">
-                  What's Your Video About?
-                </label>
+                <label className="text-sm font-medium">Video Topic</label>
                 <Input
-                  id="topic"
-                  type="text"
-                  placeholder="e.g., 'How to build a SaaS in 30 days'"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  disabled={loading}
+                  placeholder="e.g., How to learn Python programming"
+                  value={videoTopic}
+                  onChange={(e) => setVideoTopic(e.target.value)}
+                  className="bg-input border-border"
                   required
-                  minLength={5}
-                  className="text-base"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Be specific and creative – the more details, the better the content
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="description" className="text-sm font-bold block">
-                  More Details (Optional)
-                </label>
-                <textarea
-                  id="description"
-                  placeholder="Your target audience, vibe, specific points to include..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={loading}
-                  className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed resize-none text-base"
-                  rows={3}
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="length" className="text-sm font-bold block">
-                    Total Length
-                  </label>
+                  <label className="text-sm font-medium">Length (minutes)</label>
                   <select
-                    id="length"
                     value={videoLength}
                     onChange={(e) => setVideoLength(e.target.value)}
-                    disabled={loading}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                    className="w-full px-3 py-2 bg-input border border-border rounded-md text-sm"
                   >
-                    <option value="5">5 min</option>
-                    <option value="8">8 min</option>
-                    <option value="10">10 min</option>
-                    <option value="12">12 min</option>
-                    <option value="15">15 min</option>
-                    <option value="20">20 min</option>
+                    {[5, 10, 15, 20, 30].map((len) => (
+                      <option key={len} value={len}>
+                        {len} minutes
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="platform" className="text-sm font-bold block">
-                    Platform
-                  </label>
+                  <label className="text-sm font-medium">Platform</label>
                   <select
-                    id="platform"
                     value={platform}
                     onChange={(e) => setPlatform(e.target.value)}
-                    disabled={loading}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                    className="w-full px-3 py-2 bg-input border border-border rounded-md text-sm"
                   >
                     <option value="youtube">YouTube</option>
                     <option value="tiktok">TikTok</option>
-                    <option value="instagram">Instagram Reels</option>
-                    <option value="twitch">Twitch</option>
+                    <option value="instagram">Instagram</option>
                   </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="youtube-clip-duration" className="text-sm font-bold block">
-                    YouTube Clip Duration
-                  </label>
-                  <select
-                    id="youtube-clip-duration"
-                    value={youtubeClipDuration}
-                    onChange={(e) => setYoutubeClipDuration(e.target.value)}
-                    disabled={loading}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
-                  >
-                    <option value="0">Auto (Default)</option>
-                    <option value="5">5 seconds</option>
-                    <option value="10">10 seconds</option>
-                    <option value="15">15 seconds</option>
-                    <option value="30">30 seconds</option>
-                    <option value="45">45 seconds</option>
-                    <option value="60">60 seconds</option>
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    0 = Auto scene length based on content
-                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="tiktok-clip-duration" className="text-sm font-bold block">
-                    TikTok Clip Duration
-                  </label>
+                  <label className="text-sm font-medium">Tone</label>
                   <select
-                    id="tiktok-clip-duration"
-                    value={tiktokClipDuration}
-                    onChange={(e) => setTiktokClipDuration(e.target.value)}
-                    disabled={loading}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
-                  >
-                    <option value="0">Auto (Default)</option>
-                    <option value="5">5 seconds</option>
-                    <option value="10">10 seconds</option>
-                    <option value="15">15 seconds</option>
-                    <option value="30">30 seconds</option>
-                    <option value="45">45 seconds</option>
-                    <option value="60">60 seconds</option>
-                    <option value="90">90 seconds</option>
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    TikTok optimal: 15-90 sec
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="tone" className="text-sm font-bold block">
-                    Vibe
-                  </label>
-                  <select
-                    id="tone"
                     value={tone}
                     onChange={(e) => setTone(e.target.value)}
-                    disabled={loading}
-                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                    className="w-full px-3 py-2 bg-input border border-border rounded-md text-sm"
                   >
                     <option value="neutral">Neutral</option>
-                    <option value="investigative">Investigative</option>
-                    <option value="dramatic">Dramatic</option>
-                    <option value="humorous">Humorous</option>
-                    <option value="educational">Educational</option>
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual</option>
+                    <option value="entertaining">Entertaining</option>
                   </select>
                 </div>
               </div>
+
+              {error && (
+                <div className="p-3 bg-red-950 border border-red-800 rounded-md text-red-200 text-sm">
+                  {error}
+                </div>
+              )}
 
               <Button
                 type="submit"
-                size="lg"
-                className="w-full text-base font-bold h-12"
-                disabled={loading || !topic.trim()}
+                disabled={loading}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-12 font-semibold"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Cooking up magic...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="mr-2 h-5 w-5" />
-                    Generate Video
-                  </>
-                )}
+                {loading ? 'Generating...' : 'Generate Video Script'}
               </Button>
             </form>
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Unique Features */}
-      <section className="max-w-5xl mx-auto px-4 py-20">
-        <h2 className="text-3xl font-black text-center mb-12 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-          Features No One Else Has
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Feature 1: AI Trend Analysis */}
-          <Card className="glass-effect border border-accent/30 group hover:shadow-lg transition-all hover:scale-105">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 rounded-lg bg-accent/20">
-                  <TrendingUp className="w-6 h-6 text-accent" />
-                </div>
-              </div>
-              <CardTitle>Trending Audio Hooks</CardTitle>
-              <CardDescription>
-                Scripts powered by current trending sounds on TikTok & YouTube
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Our AI analyzes real-time trending audio and automatically structures your script around proven hooks that creators are using RIGHT NOW. Get those viral moments.
-            </CardContent>
           </Card>
 
-          {/* Feature 2: B-Roll Assistant */}
-          <Card className="glass-effect border border-primary/30 group hover:shadow-lg transition-all hover:scale-105">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 rounded-lg bg-primary/20">
-                  <Sparkles className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-              <CardTitle>Auto B-Roll Finder</CardTitle>
-              <CardDescription>
-                Free stock footage recommendations tailored to each scene
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Stop wasting time searching for B-roll. We generate a curated list of free stock footage sources and specific keywords for every scene in your video. Just copy-paste into Pexels or Unsplash.
-            </CardContent>
-          </Card>
-
-          {/* Feature 3: Thumbnail A/B Testing */}
-          <Card className="glass-effect border border-secondary/30 group hover:shadow-lg transition-all hover:scale-105">
-            <CardHeader>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-2 rounded-lg bg-secondary/20">
-                  <Zap className="w-6 h-6 text-secondary" />
-                </div>
-              </div>
-              <CardTitle>Multi-Thumbnail Generator</CardTitle>
-              <CardDescription>
-                Get 3 different thumbnail concepts with CTR predictions
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              We generate 3 unique thumbnail design options optimized for different niches, plus predicted click-through rates based on current YouTube trends. Pick the winner before you even film.
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* Social Proof */}
-      <section className="max-w-5xl mx-auto px-4 py-16 border-t border-border">
-        <div className="grid grid-cols-3 gap-8 text-center">
-          <div>
-            <p className="text-3xl font-black text-primary">500+</p>
-            <p className="text-muted-foreground">Videos Created</p>
+          {/* Features Grid */}
+          <div className="mb-20">
+            <h2 className="text-3xl font-bold text-center mb-12">Powerful Features</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {features.map((feature, idx) => {
+                const Icon = feature.icon
+                return (
+                  <Card key={idx} className="border-border bg-card p-6 hover:border-accent/50 transition-colors">
+                    <Icon className="w-6 h-6 text-accent mb-4" />
+                    <h3 className="font-semibold mb-2">{feature.title}</h3>
+                    <p className="text-sm text-muted-foreground">{feature.description}</p>
+                  </Card>
+                )
+              })}
+            </div>
           </div>
-          <div>
-            <p className="text-3xl font-black text-accent">2.5M+</p>
-            <p className="text-muted-foreground">Total Views</p>
-          </div>
-          <div>
-            <p className="text-3xl font-black text-secondary">4.9★</p>
-            <p className="text-muted-foreground">Creator Rating</p>
+
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center py-12 border-y border-border">
+            <div>
+              <div className="text-4xl font-bold text-accent mb-2">0</div>
+              <p className="text-muted-foreground">Videos Generated</p>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-accent mb-2">&lt;30s</div>
+              <p className="text-muted-foreground">Generation Time</p>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-accent mb-2">100%</div>
+              <p className="text-muted-foreground">Free to Use</p>
+            </div>
           </div>
         </div>
       </section>

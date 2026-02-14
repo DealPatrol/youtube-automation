@@ -41,6 +41,7 @@ export default function SettingsPage() {
     defaultTone: 'neutral',
     defaultLength: '10',
     defaultClipDuration: '5',
+    enableYoutubeCaptions: true,
     
     // Privacy
     analyticsEnabled: true,
@@ -245,6 +246,16 @@ export default function SettingsPage() {
                     <option value="90">90 seconds</option>
                   </select>
                 </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">YouTube Auto-Captions</p>
+                  <p className="text-sm text-muted-foreground">Auto-generate captions for YouTube videos</p>
+                </div>
+                <Switch
+                  checked={settings.enableYoutubeCaptions}
+                  onCheckedChange={(checked) => updateSetting('enableYoutubeCaptions', checked)}
+                />
               </div>
             </CardContent>
           </Card>
