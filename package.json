@@ -52,6 +52,7 @@
     "formidable": "^3.5.1",
     "googleapis": "170.1.0",
     "input-otp": "1.4.1",
+    "ioredis": "^5.9.3",
     "jszip": "3.10.1",
     "lucide-react": "^0.454.0",
     "next": "16.0.10",
@@ -67,6 +68,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
+    "uuid": "^13.0.0",
     "vaul": "^1.1.2",
     "zod": "3.25.76"
   },
