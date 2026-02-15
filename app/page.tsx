@@ -78,6 +78,16 @@ export default function Home() {
           body: JSON.stringify({ jobId: data.jobId }),
         })
 
+        if (!statusResponse.ok) {
+          const errorText = await statusResponse.text()
+          try {
+            const errorData = JSON.parse(errorText)
+            throw new Error(errorData.error || 'Failed to check job status')
+          } catch {
+            throw new Error('Failed to check job status')
+          }
+        }
+
         const statusData = await statusResponse.json()
         jobStatus = statusData.status
 
