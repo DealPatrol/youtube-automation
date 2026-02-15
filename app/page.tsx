@@ -9,6 +9,15 @@ import { Sparkles, Zap, Palette, BookOpen, Music, BarChart3 } from 'lucide-react
 
 export default function Home() {
   const [videoTopic, setVideoTopic] = useState('')
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AlertCircle, Loader2, Sparkles, Zap, TrendingUp } from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
+
+export default function GeneratorPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user, loading: authLoading } = useAuth()
+  const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
   const [tone, setTone] = useState('neutral')
@@ -19,6 +28,26 @@ export default function Home() {
   const [error, setError] = useState('')
   const [progress, setProgress] = useState('')
   const router = useRouter()
+  const [youtubeClipDuration, setYoutubeClipDuration] = useState('15')
+  const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login')
+    }
+  }, [user, authLoading, router])
+
+  // Pre-fill from URL params (from trending page)
+  useEffect(() => {
+    const urlTopic = searchParams.get('topic')
+    const urlDescription = searchParams.get('description')
+    const urlPlatform = searchParams.get('platform')
+
+    if (urlTopic) setTopic(urlTopic)
+    if (urlDescription) setDescription(urlDescription)
+    if (urlPlatform) setPlatform(urlPlatform)
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +67,7 @@ export default function Home() {
           tiktok_clip_duration: parseInt(tiktokClipDuration),
           tone,
           platform,
+          user_id: user?.uid,
         }),
       })
 
@@ -48,6 +78,8 @@ export default function Home() {
           throw new Error(errorData.error || 'Failed to generate video')
         } catch {
           throw new Error('Failed to generate video')
+          // Use default error message if JSON parsing fails
+          errorMessage = text || errorMessage
         }
       }
 
@@ -101,6 +133,17 @@ export default function Home() {
         }
 
         pollCount++
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (parseErr) {
+        console.error('[v0] JSON parse error:', parseErr)
+        console.error('[v0] Response text:', text)
+        throw new Error(`Invalid response from server: ${text.substring(0, 100)}`)
+      }
+      
+      if (!data.resultId) {
+        throw new Error('No result ID received from server')
       }
 
       if (pollCount >= maxPolls) {
@@ -148,6 +191,15 @@ export default function Home() {
       description: 'Optimize for YouTube, TikTok, Instagram and more with one click',
     },
   ]
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!user) return null
 
   return (
     <div className="min-h-screen bg-background text-foreground">

@@ -1,10 +1,40 @@
 'use client'
 
 import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Plus, Search, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Switch } from '@/components/ui/switch'
+import {
+  AlertCircle,
+  Plus,
+  Video,
+  Clock,
+  BarChart3,
+  Calendar,
+  Settings,
+  TrendingUp,
+  Zap,
+  CheckCircle,
+  Youtube,
+  CreditCard,
+  Upload,
+  PlayCircle,
+  PauseCircle,
+  Loader2,
+} from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
 
 interface Project {
   id: string
@@ -38,6 +68,138 @@ export default function Dashboard() {
       date: '5 days ago',
     },
   ])
+interface PlanLimits {
+  plan: 'free' | 'pro' | 'enterprise'
+  videosUsed: number
+  videosLimit: number
+  autoPostingEnabled: boolean
+  multiChannelEnabled: boolean
+}
+
+export default function DashboardPage() {
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [stats, setStats] = useState<UserStats>({
+    videosCreated: 0,
+    videosPublished: 0,
+    totalViews: 0,
+    scheduledVideos: 0,
+  })
+  const [planLimits, setPlanLimits] = useState<PlanLimits>({
+    plan: 'pro',
+    videosUsed: 0,
+    videosLimit: 50,
+    autoPostingEnabled: true,
+    multiChannelEnabled: false,
+  })
+  const [autoPostingActive, setAutoPostingActive] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login')
+      return
+    }
+    if (user) {
+      loadDashboardData()
+    }
+  }, [user, authLoading, router])
+
+  async function loadDashboardData() {
+    try {
+      // Load projects from Supabase
+      if (supabase && user) {
+        const { data: projectsData, error: projectsError } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('user_id', user.uid)
+          .order('created_at', { ascending: false })
+          .limit(10)
+
+        if (projectsError) throw projectsError
+
+        setProjects(
+          projectsData?.map((p) => ({
+            id: p.id,
+            title: p.title || p.topic,
+            topic: p.topic,
+            created_at: p.created_at,
+            status: p.status || 'draft',
+            scheduled_for: p.scheduled_for,
+            video_url: p.video_url,
+            views: p.views || 0,
+          })) || []
+        )
+
+        // Calculate stats
+        const created = projectsData?.length || 0
+        const published = projectsData?.filter((p) => p.status === 'published').length || 0
+        const scheduled = projectsData?.filter((p) => p.status === 'scheduled').length || 0
+        const views = projectsData?.reduce((sum, p) => sum + (p.views || 0), 0) || 0
+
+        setStats({
+          videosCreated: created,
+          videosPublished: published,
+          totalViews: views,
+          scheduledVideos: scheduled,
+        })
+      }
+
+      // Load plan limits
+      const billingRes = await fetch('/api/billing')
+      if (billingRes.ok) {
+        const billingData = await billingRes.json()
+        setPlanLimits(billingData)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function toggleAutoPosting() {
+    setAutoPostingActive(!autoPostingActive)
+    // In production, this would update user preferences in the database
+  }
+
+  function getStatusBadge(status: Project['status']) {
+    const variants: Record<string, { variant: 'default' | 'secondary' | 'outline'; icon: any }> = {
+      draft: { variant: 'outline', icon: Clock },
+      rendering: { variant: 'secondary', icon: Zap },
+      scheduled: { variant: 'default', icon: Calendar },
+      published: { variant: 'default', icon: CheckCircle },
+    }
+    const { variant, icon: Icon } = variants[status] || variants.draft
+    return (
+      <Badge variant={variant} className="gap-1">
+        <Icon className="w-3 h-3" />
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    )
+  }
+
+  function formatDate(dateString: string) {
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    } catch {
+      return 'Unknown'
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <main className="min-h-screen bg-background">

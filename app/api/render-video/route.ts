@@ -5,14 +5,26 @@ import { generateSceneVideos, generateSceneImages, generateSceneAudio } from '@/
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase credentials')
-}
+let supabase: any = null
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+if (supabaseUrl && supabaseKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey)
+  } catch (error) {
+    console.warn('[API] Failed to initialize Supabase:', error)
+  }
+} else {
+  console.warn('[API] Supabase credentials not configured')
+}
 
 export async function POST(request: Request) {
   try {
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Supabase not configured' },
+        { status: 500 }
+      )
+    }
     const { resultId, mode = 'images' } = await request.json()
 
     if (!resultId) {
@@ -27,7 +39,7 @@ export async function POST(request: Request) {
     // Fetch result data from Supabase
     const { data: result, error: dbError } = await supabase
       .from('results')
-      .select('*')
+      .select('*, projects(user_id)')
       .eq('id', resultId)
       .single()
 

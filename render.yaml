@@ -1,0 +1,15 @@
+# Exported from Render on 2026-02-15T11:14:08Z
+version: "1"
+projects:
+- name: My project
+  environments:
+  - name: Production
+    services:
+    - type: keyvalue
+      name: YouTube auto
+      plan: free
+      region: oregon
+      maxmemoryPolicy: allkeys-lru
+      ipAllowList:
+      - source: 24.241.192.28/32
+        description: colecollins763@gmail.com.
