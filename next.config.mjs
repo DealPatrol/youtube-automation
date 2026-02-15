@@ -6,10 +6,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  webpack: (config) => {
-    config.externals.push('pino-pretty')
-    return config
-  },
 }
 
 export default nextConfig
