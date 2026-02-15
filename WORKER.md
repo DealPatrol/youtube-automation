@@ -27,7 +27,7 @@ npm install
 
 Key dependencies:
 - `bullmq` - Job queue library
-- `aws-sdk` - AWS S3 integration
+- `aws-sdk` - AWS S3 integration (Note: AWS SDK v2 is in maintenance mode. Consider migrating to `@aws-sdk/client-s3` for new features and better performance)
 - `node-fetch` - HTTP requests for callbacks
 
 ## Environment Variables
@@ -218,6 +218,11 @@ After successful rendering, the worker sends a POST request to `CALLBACK_URL` wi
 - Implement the `renderWithRemotion()` function in `render-utils.mjs`
 - Check that assets are accessible
 - Verify Remotion is properly installed and configured
+
+### AWS SDK deprecation warning
+- The current implementation uses AWS SDK v2, which is in maintenance mode
+- For production use, consider migrating to AWS SDK v3 (`@aws-sdk/client-s3`)
+- Migration guide: https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/migrating-to-v3.html
 
 ## Production Deployment
 

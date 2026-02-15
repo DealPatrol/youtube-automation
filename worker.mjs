@@ -1,4 +1,4 @@
-// worker.js - BullMQ Worker for Video Rendering
+// worker.mjs - BullMQ Worker for Video Rendering
 import { Worker } from 'bullmq';
 import AWS from 'aws-sdk';
 import fs from 'fs';
@@ -62,7 +62,8 @@ const worker = new Worker('render', async job => {
     const callbackUrl = process.env.CALLBACK_URL;
     
     if (callbackUrl) {
-      const videoUrl = `https://${s3Bucket}.s3.amazonaws.com/${s3Key}`;
+      // Use the S3 Location URL from the upload result for correct bucket configuration
+      const videoUrl = s3Result.Location;
       
       const response = await fetch(callbackUrl, {
         method: 'POST',
