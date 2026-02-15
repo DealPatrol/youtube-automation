@@ -1,10 +1,19 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { cache } from '@/lib/redis'
+import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 let supabase: any = null
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey)
+}
+
+export async function POST(request: Request) {
+  try {
+    console.log('[API] Generate request received')
+    
 
 if (supabaseUrl && supabaseKey) {
   try {
@@ -27,11 +36,6 @@ export async function POST(request: Request) {
 
     const openaiKey = process.env.OPENAI_API_KEY?.trim()
     
-    console.log('[API] OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
-    console.log('[API] OPENAI_API_KEY trimmed:', !!openaiKey)
-    console.log('[API] OPENAI_API_KEY length:', openaiKey?.length)
-    console.log('[API] OPENAI_API_KEY first 10 chars:', openaiKey?.substring(0, 10))
-
     if (!openaiKey) {
       console.error('[API] Missing OPENAI_API_KEY')
       return NextResponse.json(
@@ -41,10 +45,30 @@ export async function POST(request: Request) {
     }
 
     if (!openaiKey.startsWith('sk-')) {
-      console.error('[API] Invalid OPENAI_API_KEY format - does not start with sk-', `Got: ${openaiKey.substring(0, 20)}`)
+      console.error('[API] Invalid OPENAI_API_KEY format')
       return NextResponse.json(
         { error: 'Invalid OpenAI API key format. API key should start with "sk-"' },
         { status: 500 }
+      )
+    }
+
+    let body: {
+      topic?: string
+      description?: string
+      video_length_minutes?: number
+      youtube_clip_duration?: number
+      tiktok_clip_duration?: number
+      tone?: string
+      platform?: string
+    }
+    try {
+      body = await request.json()
+      console.log('[API] Request body parsed successfully')
+    } catch (parseError) {
+      console.error('[API] Failed to parse request JSON:', parseError)
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
       )
     }
 
@@ -55,17 +79,24 @@ export async function POST(request: Request) {
       youtube_clip_duration = 0, 
       tiktok_clip_duration = 15, 
       tone, 
+      platform 
+    } = body
+
+    console.log('[API] Request params:', { topic, video_length_minutes, tone, platform })
       platform,
       user_id,
     } = await request.json()
 
     if (!topic || !video_length_minutes || !tone || !platform) {
+      console.error('[API] Missing required fields')
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: topic, video_length_minutes, tone, platform' },
         { status: 400 }
       )
     }
 
+    const userId = 'anonymous-user'
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     const userId = user_id || 'anonymous-user'
     let projectId = ''
     let resultId = ''
@@ -141,35 +172,50 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     - on_screen_text (key message or text overlay)
     - narration (word-for-word voiceover text for THIS specific scene, 8-12 seconds worth of dialogue)
     
-    Example for first 3 scenes of ${numScenes} total:
-    {"id": 1, "title": "Opening Hook", "start_time": "0:00", "end_time": "0:10", "visual_description": "Dynamic opening visual", "on_screen_text": "Hook text"},
-    {"id": 2, "title": "Introduction", "start_time": "0:10", "end_time": "0:20", "visual_description": "Topic introduction visual", "on_screen_text": "Intro text"},
-    {"id": 3, "title": "First Point", "start_time": "0:20", "end_time": "0:30", "visual_description": "First main point visual", "on_screen_text": "Point 1"}
-    ... continue until scene ${numScenes} ends at ${totalSeconds} seconds
-  ],
-  "capcut_steps": ["Step 1: Import and organize footage", "Step 2: Arrange timeline and trim clips", "Step 3: Add text overlays and graphics", "Step 4: Mix audio and add music", "Step 5: Export at optimal settings"],
-  "seo": {
-    "title": "SEO optimized title with main keyword",
-    "description": "2-3 sentence description explaining what viewers will learn",
-    "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-  },
-  "thumbnail": {
-    "text": "Bold text (2-4 words max) for the thumbnail",
-    "image_prompt": "Description of image concept that grabs attention",
-    "emotion": "The primary emotion this thumbnail should evoke"
-  }
-}`
+    console.log('[API] Job ID:', jobId)
 
-      const userPrompt = `Create a ${video_length_minutes}-minute (${totalSeconds} seconds total) ${tone} tone ${platform} video outline for: "${topic}"${description ? `\n\nAdditional context: ${description}` : ''}
+    // Generate video script
+    const totalSeconds = video_length_minutes * 60
+    const numScenes = Math.max(Math.floor(totalSeconds / 10), 10)
+    
+    await cache.set(`job:${jobId}:status`, 'processing')
+    await cache.set(`job:${jobId}:progress`, 'Generating script with AI...')
 
-CRITICAL REQUIREMENTS:
-- Generate EXACTLY ${numScenes} scenes
-- Each scene should be 8-12 seconds long
-- Scenes must cover the full ${totalSeconds} seconds (start at 0:00, end at ${video_length_minutes}:00)
-- Every scene must have detailed visual_description for AI generation
+    const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON.
 
-Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
+Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute video.
 
+Return JSON with: script (title, duration, content, full_narration, sections), scenes (array of ${numScenes} scenes with id, title, start_time, end_time, visual_description, on_screen_text, narration), capcut_steps, seo, thumbnail.`
+
+    const userPrompt = `Create a ${video_length_minutes}-minute ${tone} tone ${platform} video about: "${topic}"${description ? `\nContext: ${description}` : ''}`
+
+    console.log('[API] Calling OpenAI API...')
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${openaiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 4000,
+      }),
+    })
+
+    if (!openaiResponse.ok) {
+      const error = await openaiResponse.json()
+      console.error('[API] OpenAI error:', error)
+      throw new Error(error.error?.message || 'OpenAI API failed')
+    }
+
+    const openaiData = await openaiResponse.json()
+    let content = openaiData.choices[0].message.content.trim()
+    console.log('[API] OpenAI response received')
       console.log('[API] Calling OpenAI API with model gpt-4o-mini')
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -188,24 +234,30 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
         }),
       })
 
-      if (!openaiResponse.ok) {
-        const error = await openaiResponse.json()
-        console.error('[API] OpenAI error response:', JSON.stringify(error, null, 2))
-        
-        if (error.error?.code === 'invalid_api_key') {
-          throw new Error('Invalid OpenAI API key. Please check your API key in the Vars section and ensure it starts with "sk-".')
-        }
-        
-        throw new Error(error.error?.message || 'OpenAI API request failed')
+    let generatedContent
+    try {
+      const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
+      if (jsonMatch) {
+        generatedContent = JSON.parse(jsonMatch[1])
+      } else {
+        generatedContent = JSON.parse(content)
       }
+    } catch (parseError) {
+      console.error('[API] JSON parse error:', parseError)
+      throw new Error('Failed to parse OpenAI response as JSON')
+    }
 
-      const openaiData = await openaiResponse.json()
-      let content = openaiData.choices[0].message.content.trim()
-      console.log('[API] Received OpenAI response, parsing...')
+    // Save to cache and database
+    await cache.set(`job:${jobId}:status`, 'completed')
+    await cache.set(`job:${jobId}:progress`, 'Complete!')
+    await cache.set(`job:${jobId}:data`, JSON.stringify(generatedContent))
 
-      // Parse the JSON response
-      let generatedContent
+    if (supabase) {
       try {
+        await supabase.from('results').insert({
+          id: jobId,
+          user_id: userId,
+          processing_status: 'completed',
         const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
         let jsonStr = jsonMatch ? jsonMatch[1] : content
         
@@ -260,48 +312,25 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
           capcut_steps: generatedContent.capcut_steps || [],
           seo: generatedContent.seo,
           thumbnail: generatedContent.thumbnail,
-          processing_status: 'completed',
         })
-        .eq('id', resultId)
-
-      if (updateError) throw updateError
-      console.log('[API] Result updated with generated content')
-
-      return NextResponse.json({
-        projectId,
-        resultId,
-      })
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('[API] Generation error:', errorMessage)
-      console.error('[API] Full error:', error)
-
-      // Update result status to error
-      if (resultId) {
-        try {
-          await supabase
-            .from('results')
-            .update({
-              processing_status: 'error',
-              error_message: errorMessage,
-            })
-            .eq('id', resultId)
-        } catch (updateError) {
-          console.error('[API] Failed to update error status:', updateError)
-        }
+      } catch (dbError) {
+        console.error('[API] Database error (non-blocking):', dbError)
       }
-
-      // Return the actual error message for debugging
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: 500 }
-      )
     }
+
+    console.log('[API] Job completed:', jobId)
+
+    return NextResponse.json({
+      jobId,
+      status: 'completed',
+      data: generatedContent,
+    })
   } catch (error) {
-    console.error('[API] Request error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[API] Error:', errorMessage)
     return NextResponse.json(
-      { error: 'Invalid request' },
-      { status: 400 }
+      { error: errorMessage },
+      { status: 500 }
     )
   }
 }

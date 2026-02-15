@@ -1,5 +1,6 @@
 'use client'
 
+import { use, useState } from 'react'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -17,7 +18,72 @@ import SEOTab from '@/components/tabs/SEOTab'
 import ThumbnailTab from '@/components/tabs/ThumbnailTab'
 import { useVideoRender } from '@/app/hooks/use-video-render'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Copy, Download, ArrowLeft } from 'lucide-react'
 
+export default function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const [copied, setCopied] = useState(false)
+
+  const videoData = {
+    id,
+    topic: 'How to Learn Python Programming',
+    platform: 'YouTube',
+    status: 'completed',
+    script: `# Video Script: How to Learn Python Programming
+
+## INTRO (0:00-0:15)
+"Hey everyone! If you want to learn Python but don't know where to start, you're in the right place. In this video, I'm breaking down the best way to learn Python from zero to hero."
+
+## SECTION 1: Why Python? (0:15-1:00)
+"First, let's talk about why Python is so popular. Python is easy to read, has a massive community, and you can build anything with it - web apps, data science, AI, automation."
+
+## SECTION 2: Setup (1:00-2:00)
+"To get started, you'll need to install Python from python.org, then get a code editor. I recommend VS Code because it's free and powerful."
+
+## SECTION 3: Fundamentals (2:00-4:00)
+"Let's start with the basics: variables, data types, and functions. These are the building blocks of every program you'll write."
+
+## OUTRO (9:45-10:00)
+"Thanks for watching! If you found this helpful, smash that subscribe button. What's your favorite Python feature? Let me know in the comments!"`,
+    seoData: {
+      title: 'How to Learn Python Programming - Complete Beginner Guide',
+      description: 'Learn Python from scratch with this comprehensive beginner-friendly guide. Perfect for anyone wanting to start coding.',
+      tags: ['python', 'programming', 'tutorial', 'beginner', 'coding', 'learn to code'],
+    },
+    scenes: [
+      {
+        number: 1,
+        title: 'Intro - Hook & Welcome',
+        duration: '0:00-0:15',
+        description: 'Engaging intro with eye contact to camera, energetic delivery',
+      },
+      {
+        number: 2,
+        title: 'Why Python',
+        duration: '0:15-1:00',
+        description: 'Show Python logo, mention use cases with B-roll',
+      },
+      {
+        number: 3,
+        title: 'Setup Instructions',
+        duration: '1:00-2:00',
+        description: 'Screen recording of installation process',
+      },
+      {
+        number: 4,
+        title: 'Code Along',
+        duration: '2:00-9:45',
+        description: 'Screen recording with code examples and explanations',
+      },
+      {
+        number: 5,
+        title: 'Outro',
+        duration: '9:45-10:00',
+        description: 'Call to action - subscribe, comment, like',
+      },
+    ],
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -383,206 +449,146 @@ export default function ResultsPage() {
     )
   }
 
-  if (result.processing_status === 'error') {
-    return (
-      <div className="min-h-screen bg-background px-4 py-12">
-        <div className="max-w-4xl mx-auto">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="mb-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Generator
-            </Button>
-          </Link>
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardHeader>
-              <CardTitle className="text-destructive">Generation Failed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm">{result.error_message || 'An error occurred during generation'}</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="mb-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Generator
-            </Button>
-          </Link>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <h1 className="text-3xl font-bold">Your Generated Content</h1>
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => copyToClipboard(JSON.stringify(result, null, 2))}
-                className="bg-transparent"
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                {copied ? 'Copied!' : 'Copy All'}
+    <main className="min-h-screen bg-background">
+      <div className="max-w-5xl mx-auto px-6 py-12">
+        {/* Back Button */}
+        <Link href="/dashboard">
+          <Button variant="ghost" className="mb-8">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </Link>
+
+        {/* Header */}
+        <div className="mb-12">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+            <div>
+              <h1 className="text-4xl font-bold mb-2">{videoData.topic}</h1>
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1 rounded-full bg-secondary/20 text-secondary text-sm font-medium">
+                  {videoData.platform}
+                </span>
+                <span className="text-sm text-muted-foreground">ID: {videoData.id}</span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline">
+                Edit
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={downloadJSON}
-                className="bg-transparent"
-              >
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 <Download className="w-4 h-4 mr-2" />
-                Download
+                Export
               </Button>
-              <Button
-                size="sm"
-                onClick={downloadVideoPackage}
-                disabled={rendering}
-                variant="outline"
-                className="bg-transparent"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {rendering ? 'Creating...' : 'Download Project'}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => renderVideo('images')}
-                disabled={rendering}
-                variant="outline"
-                className="bg-transparent"
-              >
-                <Zap className="w-4 h-4 mr-2" />
-                {rendering ? 'Generating...' : 'Quick Images'}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => renderVideo('videos')}
-                disabled={rendering}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-              >
-                <Film className="w-4 h-4 mr-2" />
-                {rendering ? 'Generating...' : 'AI Video (Pro)'}
-              </Button>
-              <Link href={`/editor?projectId=${resultId}`}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="bg-transparent"
-                >
-                  <Film className="w-4 h-4 mr-2" />
-                  Open in Editor
-                </Button>
-              </Link>
-              <Button
-                size="sm"
-                onClick={uploadToYouTube}
-                disabled={uploading}
-                className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {uploading ? 'Uploading...' : 'Upload to YouTube'}
-              </Button>
-              {uploadedVideoId && (
-                <a href={`https://youtube.com/watch?v=${uploadedVideoId}`} target="_blank" rel="noopener noreferrer">
-                  <Button size="sm" variant="outline">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View on YouTube
-                  </Button>
-                </a>
-              )}
             </div>
           </div>
-          {renderStatus && (
-            <p className="text-sm mt-2 text-muted-foreground">{renderStatus}</p>
-          )}
-          {videoUrl && (
-            <div className="mt-4 p-4 rounded-lg border border-border bg-card/50">
-              <p className="text-sm font-medium mb-2">Video Ready!</p>
-              <a href={videoUrl} download>
-                <Button size="sm" className="w-full">
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Rendered Video
-                </Button>
-              </a>
-            </div>
-          )}
         </div>
-      </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-12">
-        <Tabs defaultValue="script" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
-            <TabsTrigger value="script">Script</TabsTrigger>
-            <TabsTrigger value="scenes">Scenes</TabsTrigger>
-            <TabsTrigger value="capcut">CapCut</TabsTrigger>
-            <TabsTrigger value="seo">SEO</TabsTrigger>
-            <TabsTrigger value="thumbnail">Thumbnail</TabsTrigger>
-          </TabsList>
+        {/* Content Sections */}
+        <div className="space-y-8">
+          {/* Script Section */}
+          <Card className="border-border bg-card p-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Video Script</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => copyToClipboard(videoData.script)}
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                {copied ? 'Copied!' : 'Copy'}
+              </Button>
+            </div>
+            <div className="bg-input rounded-lg p-6 whitespace-pre-wrap font-mono text-sm leading-relaxed overflow-auto max-h-96">
+              {videoData.script}
+            </div>
+          </Card>
 
-          <TabsContent value="script" className="mt-6 space-y-4">
-            {result.script ? (
-              <ScriptTab script={result.script} />
-            ) : (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground">No script data available</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+          {/* Scenes */}
+          <div>
+            <h2 className="text-2xl font-bold mb-6">Scene Breakdown</h2>
+            <div className="space-y-4">
+              {videoData.scenes.map((scene) => (
+                <Card key={scene.number} className="border-border bg-card p-6 hover:border-accent/50 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold px-2 py-1 rounded-full bg-secondary/20 text-secondary">
+                          Scene {scene.number}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{scene.duration}</span>
+                      </div>
+                      <h3 className="text-lg font-semibold mb-1">{scene.title}</h3>
+                      <p className="text-muted-foreground">{scene.description}</p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
 
-          <TabsContent value="scenes" className="mt-6 space-y-4">
-            {result.scenes && result.scenes.length > 0 ? (
-              <ScenesTab scenes={result.scenes} />
-            ) : (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground">No scene data available</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+          {/* SEO Data */}
+          <div>
+            <h2 className="text-2xl font-bold mb-6">SEO Optimization</h2>
+            <Card className="border-border bg-card p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Title</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={videoData.seoData.title}
+                    readOnly
+                    className="flex-1 bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(videoData.seoData.title)}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
 
-          <TabsContent value="capcut" className="mt-6 space-y-4">
-            {result.capcut_steps && result.capcut_steps.length > 0 ? (
-              <CapCutTab steps={result.capcut_steps} />
-            ) : (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground">No CapCut instructions available</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Description</label>
+                <div className="flex gap-2">
+                  <textarea
+                    value={videoData.seoData.description}
+                    readOnly
+                    className="flex-1 bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground resize-none"
+                    rows={3}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(videoData.seoData.description)}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
 
-          <TabsContent value="seo" className="mt-6 space-y-4">
-            {result.seo ? (
-              <SEOTab seo={result.seo} />
-            ) : (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground">No SEO data available</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="thumbnail" className="mt-6 space-y-4">
-            {result.thumbnail ? (
-              <ThumbnailTab thumbnail={result.thumbnail} />
-            ) : (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground">No thumbnail suggestions available</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Tags</label>
+                <div className="flex flex-wrap gap-2">
+                  {videoData.seoData.tags.map((tag, idx) => (
+                    <span key={idx} className="px-3 py-1 rounded-full bg-accent/20 text-accent text-sm font-medium">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </main>
   )
 }
