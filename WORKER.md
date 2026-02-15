@@ -115,6 +115,16 @@ await queue.add('render-video', {
 });
 ```
 
+**Quick Start Example:**
+
+A complete example is provided in `example-add-job.mjs`:
+
+```bash
+node example-add-job.mjs
+```
+
+This will add a sample job to the render queue (requires Redis to be running).
+
 ## Implementing Remotion Rendering
 
 The `render-utils.mjs` file contains a placeholder `renderWithRemotion()` function that needs to be implemented based on your Remotion setup.
@@ -254,4 +264,6 @@ module.exports = {
 
 - `worker.mjs` - Main worker implementation
 - `render-utils.mjs` - Remotion rendering utilities
+- `example-add-job.mjs` - Example script to add jobs to the queue
 - `package.json` - Dependencies and scripts
+- `WORKER.md` - This documentation file
