@@ -184,7 +184,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.7,
-          max_tokens: 4000,
+          max_tokens: 8000,
         }),
       })
 
@@ -207,15 +207,48 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
       let generatedContent
       try {
         const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
-        if (jsonMatch) {
-          generatedContent = JSON.parse(jsonMatch[1])
-        } else {
-          generatedContent = JSON.parse(content)
+        let jsonStr = jsonMatch ? jsonMatch[1] : content
+        
+        // Try to parse as-is first
+        try {
+          generatedContent = JSON.parse(jsonStr)
+        } catch (firstAttemptError) {
+          // If parsing fails, try to fix common JSON truncation issues
+          console.log('[API] First parse attempt failed, attempting recovery...')
+          
+          // Count braces to see if JSON is incomplete
+          const openBraces = (jsonStr.match(/{/g) || []).length
+          const closeBraces = (jsonStr.match(/}/g) || []).length
+          
+          if (openBraces > closeBraces) {
+            // Add missing closing braces
+            jsonStr += '}'.repeat(openBraces - closeBraces)
+            console.log('[API] Added missing closing braces')
+          }
+          
+          // Try parsing again
+          try {
+            generatedContent = JSON.parse(jsonStr)
+          } catch (secondAttemptError) {
+            // Last resort: extract just the valid JSON we can find
+            console.log('[API] Recovery parsing failed, extracting valid JSON...')
+            const validJsonMatch = jsonStr.match(/\{[\s\S]*\}/)
+            if (validJsonMatch) {
+              try {
+                generatedContent = JSON.parse(validJsonMatch[0])
+              } catch {
+                throw firstAttemptError
+              }
+            } else {
+              throw firstAttemptError
+            }
+          }
         }
       } catch (parseError) {
         console.error('[API] JSON parse error:', parseError)
-        console.error('[API] Raw content:', content)
-        throw new Error('Failed to parse generated content as JSON')
+        console.error('[API] Raw content length:', content.length)
+        console.error('[API] Raw content preview:', content.substring(0, 500))
+        throw new Error('Failed to parse generated content as JSON. The response may be incomplete.')
       }
 
       // Update result with generated content
