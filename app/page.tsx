@@ -17,12 +17,14 @@ export default function Home() {
   const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [progress, setProgress] = useState('')
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setProgress('')
 
     try {
       const response = await fetch('/api/generate', {
@@ -57,6 +59,7 @@ export default function Home() {
 
       if (data.status === 'completed') {
         setError('')
+        setProgress('')
         router.push(`/results/${data.jobId}`)
         return
       }
@@ -66,7 +69,7 @@ export default function Home() {
       const maxPolls = 300
 
       while (jobStatus === 'queued' && pollCount < maxPolls) {
-        setError(`Generating video... (${pollCount}s)`)
+        setProgress(`Generating video... (${pollCount}s)`)
         await new Promise(resolve => setTimeout(resolve, 1000))
 
         const statusResponse = await fetch('/api/job-status', {
@@ -80,6 +83,7 @@ export default function Home() {
 
         if (jobStatus === 'completed') {
           setError('')
+          setProgress('')
           router.push(`/results/${data.jobId}`)
           return
         } else if (jobStatus === 'failed') {
@@ -95,6 +99,7 @@ export default function Home() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
+      setProgress('')
       console.error('Error:', errorMessage)
     } finally {
       setLoading(false)
@@ -205,6 +210,12 @@ export default function Home() {
                   </select>
                 </div>
               </div>
+
+              {progress && (
+                <div className="p-3 bg-blue-950 border border-blue-800 rounded-md text-blue-200 text-sm">
+                  {progress}
+                </div>
+              )}
 
               {error && (
                 <div className="p-3 bg-red-950 border border-red-800 rounded-md text-red-200 text-sm">
