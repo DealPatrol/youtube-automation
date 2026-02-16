@@ -10,8 +10,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'YouTube AI Builder',
-  description: 'Generate scripts, scenes, SEO metadata, and thumbnails for your YouTube videos using AI',
+  title: 'ContentForge - Create Faceless YouTube Videos',
+  description: 'Generate 5-10 minute long-form YouTube videos automatically. Discover trends, create professional scripts, render videos, and publish directly to YouTube.',
   generator: 'v0.app',
   icons: {
     icon: [
