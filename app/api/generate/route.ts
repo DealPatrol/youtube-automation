@@ -18,13 +18,6 @@ if (supabaseUrl && supabaseKey) {
 
 export async function POST(request: Request) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
-    }
-
     const openaiKey = process.env.OPENAI_API_KEY?.trim()
     
     console.log('[API] OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
@@ -252,20 +245,38 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
       }
 
       // Update result with generated content
-      const { error: updateError } = await supabase
-        .from('results')
-        .update({
+      if (supabase) {
+        const { error: updateError } = await supabase
+          .from('results')
+          .update({
+            script: generatedContent.script,
+            scenes: generatedContent.scenes || [],
+            capcut_steps: generatedContent.capcut_steps || [],
+            seo: generatedContent.seo,
+            thumbnail: generatedContent.thumbnail,
+            processing_status: 'completed',
+          })
+          .eq('id', resultId)
+
+        if (updateError) throw updateError
+        console.log('[API] Result updated with generated content')
+      } else {
+        console.log('[API] Supabase not available, storing in session memory')
+        // Demo mode: store in global cache
+        if (!globalThis.demoResults) {
+          globalThis.demoResults = {}
+        }
+        globalThis.demoResults[resultId] = {
+          id: resultId,
           script: generatedContent.script,
           scenes: generatedContent.scenes || [],
           capcut_steps: generatedContent.capcut_steps || [],
           seo: generatedContent.seo,
           thumbnail: generatedContent.thumbnail,
           processing_status: 'completed',
-        })
-        .eq('id', resultId)
-
-      if (updateError) throw updateError
-      console.log('[API] Result updated with generated content')
+          project_id: projectId,
+        }
+      }
 
       return NextResponse.json({
         projectId,
@@ -278,16 +289,27 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
 
       // Update result status to error
       if (resultId) {
-        try {
-          await supabase
-            .from('results')
-            .update({
-              processing_status: 'error',
-              error_message: errorMessage,
-            })
-            .eq('id', resultId)
-        } catch (updateError) {
-          console.error('[API] Failed to update error status:', updateError)
+        if (supabase) {
+          try {
+            await supabase
+              .from('results')
+              .update({
+                processing_status: 'error',
+                error_message: errorMessage,
+              })
+              .eq('id', resultId)
+          } catch (updateError) {
+            console.error('[API] Failed to update error status:', updateError)
+          }
+        } else {
+          // Demo mode: store error
+          if (!globalThis.demoResults) {
+            globalThis.demoResults = {}
+          }
+          globalThis.demoResults[resultId] = {
+            processing_status: 'error',
+            error_message: errorMessage,
+          }
         }
       }
 
