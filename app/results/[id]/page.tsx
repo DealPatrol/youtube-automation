@@ -66,18 +66,56 @@ export default function ResultsPage() {
   }, [resultId, user, authLoading, router])
 
   async function loadResult() {
-    if (!supabase) {
-      setError('Supabase not configured')
-      setLoading(false)
-      return
-    }
-
     try {
-      const { data, error: dbError } = await supabase
-        .from('results')
-        .select('*')
-        .eq('id', resultId)
-        .single()
+      let resultData = null
+
+      // Try Supabase first
+      if (supabase) {
+        try {
+          const { data, error: dbError } = await supabase
+            .from('results')
+            .select('*')
+            .eq('id', resultId)
+            .single()
+
+          if (!dbError && data) {
+            resultData = data
+          }
+        } catch (supabaseErr) {
+          console.log('[Results] Supabase unavailable, checking localStorage')
+        }
+      }
+
+      // Fallback to localStorage (for demo mode)
+      if (!resultData && typeof window !== 'undefined') {
+        try {
+          const demoResults = JSON.parse(localStorage.getItem('demoResults') || '{}')
+          if (demoResults[resultId]) {
+            resultData = {
+              id: resultId,
+              ...demoResults[resultId],
+            }
+            console.log('[Results] Loaded result from localStorage')
+          }
+        } catch (storageErr) {
+          console.warn('[Results] Failed to load from localStorage:', storageErr)
+        }
+      }
+
+      if (!resultData) {
+        setError('Result not found. Please try generating a video again.')
+        setLoading(false)
+        return
+      }
+
+      setResult(resultData)
+      setLoading(false)
+    } catch (err) {
+      console.error('[Results] Load error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load result')
+      setLoading(false)
+    }
+  }
 
       if (dbError) {
         setError('Result not found')

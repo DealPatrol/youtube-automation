@@ -93,6 +93,18 @@ export default function GeneratorPage() {
         throw new Error('No result ID received from server')
       }
 
+      // Store result in localStorage as fallback for demo mode
+      if (typeof window !== 'undefined') {
+        try {
+          const demoResults = JSON.parse(localStorage.getItem('demoResults') || '{}')
+          demoResults[data.resultId] = data
+          localStorage.setItem('demoResults', JSON.stringify(demoResults))
+          console.log('[v0] Cached result in localStorage:', data.resultId)
+        } catch (storageErr) {
+          console.warn('[v0] Failed to cache result:', storageErr)
+        }
+      }
+
       router.push(`/results/${data.resultId}`)
     } catch (err) {
       console.error('[v0] Generation error:', err)
