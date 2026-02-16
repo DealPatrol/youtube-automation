@@ -63,18 +63,48 @@ interface PlanLimits {
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
+  const [projects, setProjects] = useState<Project[]>([
+    {
+      id: '1',
+      title: 'How To Start A Faceless YouTube Channel',
+      topic: 'YouTube',
+      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'published',
+      scheduled_for: undefined,
+      video_url: 'https://example.com/video1.mp4',
+      views: 1250,
+    },
+    {
+      id: '2',
+      title: 'AI Tools That Changed My Life',
+      topic: 'AI',
+      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'scheduled',
+      scheduled_for: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      video_url: 'https://example.com/video2.mp4',
+      views: 0,
+    },
+    {
+      id: '3',
+      title: 'Top 5 Stock Footage Websites',
+      topic: 'Resources',
+      created_at: new Date().toISOString(),
+      status: 'draft',
+      video_url: undefined,
+      views: 0,
+    }
+  ])
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [stats, setStats] = useState<UserStats>({
-    videosCreated: 0,
-    videosPublished: 0,
-    totalViews: 0,
-    scheduledVideos: 0,
+    videosCreated: 3,
+    videosPublished: 1,
+    totalViews: 1250,
+    scheduledVideos: 1,
   })
   const [planLimits, setPlanLimits] = useState<PlanLimits>({
     plan: 'pro',
-    videosUsed: 0,
+    videosUsed: 3,
     videosLimit: 50,
     autoPostingEnabled: true,
     multiChannelEnabled: false,

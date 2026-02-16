@@ -19,12 +19,6 @@ if (supabaseUrl && supabaseKey) {
 
 export async function POST(request: Request) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
-    }
     const { resultId, mode = 'images' } = await request.json()
 
     if (!resultId) {
@@ -36,25 +30,35 @@ export async function POST(request: Request) {
 
     console.log('[API] Rendering video for result:', resultId, 'Mode:', mode)
 
-    // Fetch result data from Supabase
-    const { data: result, error: dbError } = await supabase
-      .from('results')
-      .select('*, projects(user_id)')
-      .eq('id', resultId)
-      .single()
+    let result: any = null
 
-    if (dbError) {
-      console.error('[API] Database error:', dbError)
-      return NextResponse.json(
-        { error: `Database error: ${dbError.message}` },
-        { status: 500 }
-      )
+    // Try to fetch from Supabase if available
+    if (supabase) {
+      try {
+        const { data, error: dbError } = await supabase
+          .from('results')
+          .select('*, projects(user_id)')
+          .eq('id', resultId)
+          .single()
+
+        if (!dbError && data) {
+          result = data
+        }
+      } catch (supabaseErr) {
+        console.warn('[API] Supabase fetch failed, checking demo mode')
+      }
+    }
+
+    // Fallback to demo mode (stored globally)
+    if (!result && typeof globalThis !== 'undefined' && globalThis.demoResults) {
+      result = globalThis.demoResults[resultId]
+      console.log('[API] Using demo mode result')
     }
 
     if (!result) {
       console.error('[API] Result not found:', resultId)
       return NextResponse.json(
-        { error: 'Result not found' },
+        { error: 'Result not found. Please generate a video first.' },
         { status: 404 }
       )
     }
@@ -70,13 +74,6 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-
-    // Fetch project to get clip duration
-    const { data: project } = await supabase
-      .from('projects')
-      .select('clip_duration_seconds')
-      .eq('id', result.project_id)
-      .single()
 
     const clipDuration = project?.clip_duration_seconds || 5
 
