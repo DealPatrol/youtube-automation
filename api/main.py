@@ -1,11 +1,13 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, String, DateTime, Integer, JSON, Enum
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.sql import func
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+import logging
 import os
 import tempfile
 import subprocess
@@ -14,7 +16,10 @@ import requests
 from enum import Enum as PyEnum
 
 # ============ CONFIG ============
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/video_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+# Render and some platforms use postgres://; SQLAlchemy/psycopg2 expect postgresql://
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -31,8 +36,9 @@ BRANDING_LOGO_POSITION = os.getenv("BRANDING_LOGO_POSITION", "top-right")
 BRANDING_LOGO_PADDING = int(os.getenv("BRANDING_LOGO_PADDING", "24"))
 
 # ============ DATABASE SETUP ============
-engine = create_engine(DATABASE_URL, echo=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Engine and session are created at startup so connection failures don't crash import (e.g. on Render with wrong DATABASE_URL)
+engine = None
+SessionLocal = None
 Base = declarative_base()
 
 # ============ MODELS ============
@@ -139,6 +145,11 @@ class ResultResponse(BaseModel):
 
 # ============ DEPENDENCY ============
 def get_db():
+    if not SessionLocal:
+        raise HTTPException(
+            status_code=503,
+            detail="Database not configured or unavailable. On Render, set DATABASE_URL to your PostgreSQL Internal Database URL.",
+        )
     db = SessionLocal()
     try:
         yield db
@@ -400,8 +411,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+@app.on_event("startup")
+def startup_db():
+    """Connect to DB and create tables at startup. If DATABASE_URL is wrong (e.g. localhost on Render), app still starts and DB routes return 500."""
+    global engine, SessionLocal
+    if not DATABASE_URL:
+        return
+    try:
+        engine = create_engine(DATABASE_URL, echo=False)
+        Base.metadata.create_all(bind=engine)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        logging.getLogger(__name__).info("Database connected and tables ready")
+    except OperationalError as e:
+        logging.getLogger(__name__).warning(
+            "Database unavailable (check DATABASE_URL, e.g. use Render PostgreSQL Internal URL): %s", e
+        )
+        engine, SessionLocal = None, None
 
 # ============ ROUTES ============
 @app.get("/health")
