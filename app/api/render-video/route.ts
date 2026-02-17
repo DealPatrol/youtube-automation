@@ -18,8 +18,10 @@ if (supabaseUrl && supabaseKey) {
 }
 
 export async function POST(request: Request) {
+  let resultId: string | undefined
   try {
-    const { resultId, mode = 'images' } = await request.json()
+    const { resultId: requestResultId, mode = 'images' } = await request.json()
+    resultId = requestResultId
 
     if (!resultId) {
       return NextResponse.json(
@@ -132,14 +134,15 @@ export async function POST(request: Request) {
 
     // Update status to error
     try {
-      const resultId = (await request.json()).resultId; // Declare resultId here
-      await supabase
-        .from('results')
-        .update({
-          processing_status: 'error',
-          error_message: error instanceof Error ? error.message : 'Unknown error',
-        })
-        .eq('id', resultId)
+      if (resultId) {
+        await supabase
+          .from('results')
+          .update({
+            processing_status: 'error',
+            error_message: error instanceof Error ? error.message : 'Unknown error',
+          })
+          .eq('id', resultId)
+      }
     } catch (updateError) {
       console.error('[API] Failed to update error status:', updateError)
     }

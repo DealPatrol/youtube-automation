@@ -25,9 +25,42 @@ FAL_KEY=...
 \`\`\`
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
+SUPABASE_STORAGE_BUCKET=videos
 \`\`\`
 **Get it from:** Your Supabase project settings
 - Already configured if you have Supabase integration
+- `SUPABASE_STORAGE_BUCKET` should be a public bucket where assembled videos are uploaded
+
+### 4. FFmpeg (Video Assembly)
+Install FFmpeg locally or on your server:
+
+- macOS: `brew install ffmpeg`
+- Ubuntu: `sudo apt-get install ffmpeg`
+- Windows: https://ffmpeg.org/download.html
+
+If you are running on Vercel, you should offload assembly to a backend with FFmpeg:
+
+\`\`\`
+VIDEO_ASSEMBLY_URL=https://your-backend.com/api/assemble-video
+\`\`\`
+The backend must have these env vars:
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`
+
+### 5. Optional Enhancements
+\`\`\`
+BACKGROUND_MUSIC_URL=https://your-cdn.com/music.mp3
+BACKGROUND_MUSIC_PATH=./public/audio/background.mp3
+BACKGROUND_MUSIC_VOLUME=0.2
+BRANDING_LOGO_URL=https://your-cdn.com/logo.png
+BRANDING_LOGO_PATH=./public/placeholder-logo.png
+BRANDING_LOGO_SCALE=0.12
+BRANDING_LOGO_OPACITY=0.85
+BRANDING_LOGO_POSITION=top-right
+BRANDING_LOGO_PADDING=24
+ENABLE_YOUTUBE_CAPTIONS=true
+\`\`\`
+- Background music and branding are optional; set either a URL or a local path
+- Captions are auto-generated from scene narration when available
 
 ## Setup Steps
 

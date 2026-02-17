@@ -10,6 +10,7 @@ Add these to your v0 Vars section (click "Vars" in the left sidebar):
 \`\`\`
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_STORAGE_BUCKET=videos
 \`\`\`
 
 **YouTube Integration:**
@@ -17,6 +18,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 YOUTUBE_CLIENT_ID=your_youtube_client_id
 YOUTUBE_CLIENT_SECRET=your_youtube_client_secret
 NEXTAUTH_URL=https://your-domain.com (or http://localhost:3000 for local dev)
+ENABLE_YOUTUBE_CAPTIONS=true
 \`\`\`
 
 **OpenAI (for video script generation):**
@@ -25,21 +27,6 @@ OPENAI_API_KEY=your_openai_api_key
 \`\`\`
 
 ### Optional Variables
-
-**Firebase (if using for auth/storage):**
-\`\`\`
-NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
-FIREBASE_PROJECT_ID=your_firebase_project_id
-FIREBASE_PRIVATE_KEY_ID=your_firebase_private_key_id
-FIREBASE_PRIVATE_KEY=your_firebase_private_key
-FIREBASE_CLIENT_EMAIL=your_firebase_client_email
-FIREBASE_CLIENT_ID=your_firebase_client_id
-\`\`\`
 
 **Stripe (for payments):**
 \`\`\`
@@ -51,12 +38,31 @@ STRIPE_PRICE_ID_PRO=your_stripe_price_id
 CRON_SECRET=your_secure_random_string
 \`\`\`
 
+**X (Twitter) Trends:**
+\`\`\`
+X_BEARER_TOKEN=your_x_bearer_token
+\`\`\`
+
 **Video Processing:**
 \`\`\`
 FASTAPI_URL=http://localhost:8000 (for local dev) or your-backend-url
 NEXT_PUBLIC_API_URL=http://localhost:8000
 UNSPLASH_ACCESS_KEY=your_unsplash_api_key
+BACKGROUND_MUSIC_URL=https://your-cdn.com/music.mp3
+BACKGROUND_MUSIC_PATH=./public/audio/background.mp3
+BACKGROUND_MUSIC_VOLUME=0.2
+BRANDING_LOGO_URL=https://your-cdn.com/logo.png
+BRANDING_LOGO_PATH=./public/placeholder-logo.png
+BRANDING_LOGO_SCALE=0.12
+BRANDING_LOGO_OPACITY=0.85
+BRANDING_LOGO_POSITION=top-right
+BRANDING_LOGO_PADDING=24
+VIDEO_ASSEMBLY_URL=https://your-backend.com/api/assemble-video
 \`\`\`
+Notes:
+- Background music and branding are optional; set either a URL or a local path
+- FFmpeg must be available on the runtime that executes `/api/assemble-video`
+- If `VIDEO_ASSEMBLY_URL` is set, assembly is offloaded to that endpoint
 
 ## How to Get Each Variable
 
@@ -84,18 +90,12 @@ UNSPLASH_ACCESS_KEY=your_unsplash_api_key
 - Set usage limits for safety
 - Copy → `OPENAI_API_KEY`
 
-### 4. Firebase (Optional)
-- Go to [firebase.google.com](https://firebase.google.com)
-- Create project
-- Go to Project Settings
-- Copy values from "Your apps" section
-
-### 5. Stripe (Optional)
+### 4. Stripe (Optional)
 - Go to [stripe.com](https://stripe.com)
 - Create product and price
 - Copy price ID → `STRIPE_PRICE_ID_PRO`
 
-### 6. Unsplash (Optional - for stock images)
+### 5. Unsplash (Optional - for stock images)
 - Go to [unsplash.com/developers](https://unsplash.com/developers)
 - Create application
 - Copy Access Key → `UNSPLASH_ACCESS_KEY`
@@ -131,6 +131,11 @@ CRON_SECRET=your_secure_random_string
 2. Go to Environment Variables
 3. Add all required variables (use the public URLs, not localhost)
 4. Make sure `NEXTAUTH_URL=https://your-production-domain.com`
+5. Ensure FFmpeg is available on the runtime handling video assembly
+
+**Important:** Vercel Serverless/Edge functions do not include FFmpeg by default. For video assembly on Vercel, you must either:
+- Use a custom server/runtime with FFmpeg installed, or
+- Offload assembly to a separate backend and call it from `/api/assemble-video` (set `VIDEO_ASSEMBLY_URL`)
 
 ## Security Notes
 

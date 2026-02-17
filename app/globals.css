@@ -129,6 +129,22 @@
     background: linear-gradient(135deg, oklch(0.65 0.32 290) 0%, oklch(0.78 0.28 140) 100%);
   }
 
+  .page-glow {
+    position: absolute;
+    inset: -200px 0 auto;
+    height: 420px;
+    background: radial-gradient(circle at top, rgba(132, 94, 247, 0.18), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .gradient-glow {
+    background: linear-gradient(135deg, rgb(102, 51, 153) 0%, rgb(220, 38, 38) 25%, rgb(59, 130, 246) 50%, rgb(34, 197, 94) 75%, rgb(168, 85, 247) 100%);
+    background-size: 300% 300%;
+    animation: gradient-shift 8s ease infinite;
+  }
+  }
+
   .dark .gradient-accent {
     background: linear-gradient(135deg, oklch(0.65 0.32 290) 0%, oklch(0.78 0.28 140) 100%);
   }

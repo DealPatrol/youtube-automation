@@ -1,0 +1,5 @@
+{
+  "name": "Video Assembly",
+  "role": "automation",
+  "description": "Combines all steps of video creation into a final assembled video output."
+}

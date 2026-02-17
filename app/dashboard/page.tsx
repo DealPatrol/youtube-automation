@@ -60,6 +60,16 @@ interface PlanLimits {
   multiChannelEnabled: boolean
 }
 
+type EnvStatus = {
+  nextPublicSupabaseUrl: boolean
+  supabaseServiceRoleKey: boolean
+  supabaseStorageBucket: boolean
+  openaiApiKey: boolean
+  falKey: boolean
+  videoAssemblyUrl: boolean
+  xCredentials: boolean
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
@@ -110,6 +120,8 @@ export default function DashboardPage() {
     multiChannelEnabled: false,
   })
   const [autoPostingActive, setAutoPostingActive] = useState(false)
+  const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
+  const [envError, setEnvError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -166,6 +178,14 @@ export default function DashboardPage() {
       if (billingRes.ok) {
         const billingData = await billingRes.json()
         setPlanLimits(billingData)
+      }
+
+      const statusRes = await fetch('/api/status')
+      if (statusRes.ok) {
+        const statusData = await statusRes.json()
+        setEnvStatus(statusData.env)
+      } else {
+        setEnvError('System status unavailable')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard')
@@ -480,6 +500,43 @@ export default function DashboardPage() {
                       Upgrade to Pro
                     </Button>
                   </Link>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">System Status</CardTitle>
+                <CardDescription>Production readiness checklist</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {envError && (
+                  <p className="text-xs text-destructive">{envError}</p>
+                )}
+                {!envStatus && !envError && (
+                  <p className="text-xs text-muted-foreground">Checking environment…</p>
+                )}
+                {envStatus && (
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {[
+                      ['Supabase URL', envStatus.nextPublicSupabaseUrl],
+                      ['Supabase Service Key', envStatus.supabaseServiceRoleKey],
+                      ['Supabase Storage Bucket', envStatus.supabaseStorageBucket],
+                      ['OpenAI API Key', envStatus.openaiApiKey],
+                      ['FAL Key', envStatus.falKey],
+                      ['Video Assembly URL', envStatus.videoAssemblyUrl],
+                      ['X Credentials', envStatus.xCredentials],
+                    ].map(([label, ready]) => (
+                      <div key={label} className="flex items-center justify-between">
+                        <span>{label}</span>
+                        {ready ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Missing</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
