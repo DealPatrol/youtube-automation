@@ -159,12 +159,14 @@ export default function DashboardPage() {
       rendering: { variant: 'secondary', icon: Zap },
       scheduled: { variant: 'default', icon: Calendar },
       published: { variant: 'default', icon: CheckCircle },
+      completed: { variant: 'default', icon: CheckCircle },
+      processing: { variant: 'secondary', icon: Zap },
     }
-    const { variant, icon: Icon } = variants[status] || variants.draft
+    const { variant, icon: Icon } = variants[status || 'draft'] || variants.draft
     return (
       <Badge variant={variant} className="gap-1">
         <Icon className="w-3 h-3" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Draft'}
       </Badge>
     )
   }
@@ -192,6 +194,16 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-12">
+        {/* Error Alert */}
+        {error && (
+          <Card className="border-destructive bg-destructive/10 p-4 mb-6">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="w-5 h-5" />
+              <p className="font-medium">{error}</p>
+            </div>
+          </Card>
+        )}
+
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-12">
           <div>
@@ -222,23 +234,44 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <Card className="border-border bg-card p-6">
             <p className="text-sm text-muted-foreground mb-2">Total Videos</p>
-            <p className="text-3xl font-bold">{projects.length}</p>
+            <p className="text-3xl font-bold">{stats.videosCreated}</p>
           </Card>
           <Card className="border-border bg-card p-6">
-            <p className="text-sm text-muted-foreground mb-2">This Month</p>
-            <p className="text-3xl font-bold">{projects.filter(p => p.date.includes('ago')).length}</p>
+            <p className="text-sm text-muted-foreground mb-2">Published</p>
+            <p className="text-3xl font-bold">{stats.videosPublished}</p>
           </Card>
           <Card className="border-border bg-card p-6">
-            <p className="text-sm text-muted-foreground mb-2">Processing</p>
-            <p className="text-3xl font-bold">{projects.filter(p => p.status === 'processing').length}</p>
+            <p className="text-sm text-muted-foreground mb-2">Scheduled</p>
+            <p className="text-3xl font-bold">{stats.scheduledVideos}</p>
           </Card>
         </div>
 
         {/* Recent Projects */}
         <div>
           <h2 className="text-2xl font-bold mb-6">Recent Videos</h2>
-          <div className="space-y-4">
-            {projects.map((project) => (
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="border-border bg-card p-6">
+                  <Skeleton className="h-20 w-full" />
+                </Card>
+              ))}
+            </div>
+          ) : projects.length === 0 ? (
+            <Card className="border-border bg-card p-12 text-center">
+              <Video className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">No videos yet</h3>
+              <p className="text-muted-foreground mb-6">Create your first video to get started</p>
+              <Button asChild>
+                <Link href="/">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Video
+                </Link>
+              </Button>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {projects.map((project) => (
               <Card key={project.id} className="border-border bg-card p-6 hover:border-accent/50 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -250,7 +283,7 @@ export default function DashboardPage() {
                     </div>
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Clock className="w-4 h-4" />
-                      {project.date}
+                      {project.created_at ? formatDate(project.created_at) : 'Unknown'}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -268,6 +301,7 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
+          )}
         </div>
       </div>
     </main>

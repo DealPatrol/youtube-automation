@@ -48,7 +48,7 @@ export default function SEOTab({ seo }: SEOTabProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.title, 'title')}
+                onClick={() => handleCopy(seo.title || '', 'title')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'title' ? (
@@ -75,7 +75,7 @@ export default function SEOTab({ seo }: SEOTabProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.description, 'description')}
+                onClick={() => handleCopy(seo.description || '', 'description')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'description' ? (
@@ -102,7 +102,7 @@ export default function SEOTab({ seo }: SEOTabProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.tags.join(', '), 'tags')}
+                onClick={() => handleCopy((seo.tags || []).join(', '), 'tags')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'tags' ? (
@@ -143,7 +143,7 @@ export default function SEOTab({ seo }: SEOTabProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.hashtags.join(' '), 'hashtags')}
+                onClick={() => handleCopy((seo.hashtags || []).join(' '), 'hashtags')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'hashtags' ? (
@@ -167,7 +167,7 @@ export default function SEOTab({ seo }: SEOTabProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.pinned_comment, 'pinned')}
+                onClick={() => handleCopy(seo.pinned_comment || '', 'pinned')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'pinned' ? (

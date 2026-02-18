@@ -108,8 +108,14 @@ export const cache = {
   },
 
   async zrange(key: string, start: number = 0, stop: number = -1): Promise<string[]> {
+    const client = getRedis()
+    if (!client) {
+      console.warn('[v0] Redis not configured, cannot zrange')
+      return []
+    }
+
     try {
-      const data = await redis.zrange(key, start, stop)
+      const data = await client.zrange(key, start, stop)
       return data as string[]
     } catch (error) {
       console.error('[v0] Redis zrange error:', error)
@@ -118,8 +124,14 @@ export const cache = {
   },
 
   async zrem(key: string, member: string): Promise<void> {
+    const client = getRedis()
+    if (!client) {
+      console.warn('[v0] Redis not configured, cannot zrem')
+      return
+    }
+
     try {
-      await redis.zrem(key, member)
+      await client.zrem(key, member)
     } catch (error) {
       console.error('[v0] Redis zrem error:', error)
     }

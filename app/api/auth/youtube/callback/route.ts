@@ -25,6 +25,25 @@ export async function GET(request: Request) {
       )
     }
 
+    // Extract query parameters
+    const { searchParams } = new URL(request.url)
+    const code = searchParams.get('code')
+    const error = searchParams.get('error')
+    const state = searchParams.get('state')
+    const resultId = state || 'unknown'
+
+    // Get OAuth credentials from environment
+    const clientId = process.env.YOUTUBE_CLIENT_ID
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
+    const redirectUri = `${new URL(request.url).origin}/api/auth/youtube/callback`
+
+    if (!clientId || !clientSecret) {
+      const redirectUrl = resultId && resultId !== 'unknown'
+        ? `/results/${resultId}?youtube_error=YouTube OAuth not configured`
+        : '/?youtube_error=YouTube OAuth not configured'
+      return NextResponse.redirect(new URL(redirectUrl, request.url))
+    }
+
     if (error) {
       const redirectUrl = resultId && resultId !== 'unknown' 
         ? `/results/${resultId}?youtube_error=${encodeURIComponent(error)}`
