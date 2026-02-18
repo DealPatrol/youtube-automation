@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     // Call the job processor
     const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
     const response = await fetch(`${baseUrl}/api/worker/process-jobs`, {
-      method: 'GET',
+      method: 'POST',
     })
 
     const data = await response.json()
