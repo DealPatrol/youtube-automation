@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { cache } from '@/lib/redis'
+import { cache, getRedis } from '@/lib/redis'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -45,6 +45,16 @@ export async function POST(request: Request) {
       )
     }
 
+    // Check Redis configuration before proceeding
+    const redisClient = getRedis()
+    if (!redisClient) {
+      console.error('[API] Redis not configured - KV_REST_API_URL and KV_REST_API_TOKEN required')
+      return NextResponse.json(
+        { error: 'Redis not configured. Please add KV_REST_API_URL and KV_REST_API_TOKEN to your environment variables.' },
+        { status: 500 }
+      )
+    }
+
     let body: {
       topic?: string
       description?: string
@@ -53,6 +63,7 @@ export async function POST(request: Request) {
       tiktok_clip_duration?: number
       tone?: string
       platform?: string
+      user_id?: string
     }
     try {
       body = await request.json()
@@ -72,13 +83,11 @@ export async function POST(request: Request) {
       youtube_clip_duration = 0, 
       tiktok_clip_duration = 15, 
       tone, 
-      platform 
+      platform,
+      user_id 
     } = body
 
     console.log('[API] Request params:', { topic, video_length_minutes, tone, platform })
-      platform,
-      user_id,
-    } = await request.json()
 
     if (!topic || !video_length_minutes || !tone || !platform) {
       console.error('[API] Missing required fields')
@@ -88,9 +97,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const userId = 'anonymous-user'
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     const userId = user_id || 'anonymous-user'
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     let projectId = ''
     let resultId = ''
 
@@ -135,6 +143,11 @@ export async function POST(request: Request) {
       const totalSeconds = video_length_minutes * 60
       const numScenes = Math.max(Math.floor(totalSeconds / 10), 10) // ~10 seconds per scene, minimum 10 scenes
       
+      console.log('[API] Job ID:', jobId)
+      
+      await cache.set(`job:${jobId}:status`, 'processing')
+      await cache.set(`job:${jobId}:progress`, 'Generating script with AI...')
+
       const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON (no markdown, no code blocks, no explanations).
 
 CRITICAL: Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute (${totalSeconds} seconds) video. Each scene should be 8-12 seconds long.
@@ -164,51 +177,20 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     - Detailed visual_description (for AI image/video generation)
     - on_screen_text (key message or text overlay)
     - narration (word-for-word voiceover text for THIS specific scene, 8-12 seconds worth of dialogue)
-    
-    console.log('[API] Job ID:', jobId)
+  ],
+  "capcut_steps": ["Step-by-step editing guide"],
+  "seo": {
+    "title": "SEO-optimized title",
+    "description": "SEO-optimized description",
+    "tags": ["relevant", "tags"]
+  },
+  "thumbnail": {
+    "description": "Thumbnail design description"
+  }
+}`
 
-    // Generate video script
-    const totalSeconds = video_length_minutes * 60
-    const numScenes = Math.max(Math.floor(totalSeconds / 10), 10)
-    
-    await cache.set(`job:${jobId}:status`, 'processing')
-    await cache.set(`job:${jobId}:progress`, 'Generating script with AI...')
+      const userPrompt = `Create a ${video_length_minutes}-minute ${tone} tone ${platform} video about: "${topic}"${description ? `\nContext: ${description}` : ''}`
 
-    const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON.
-
-Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute video.
-
-Return JSON with: script (title, duration, content, full_narration, sections), scenes (array of ${numScenes} scenes with id, title, start_time, end_time, visual_description, on_screen_text, narration), capcut_steps, seo, thumbnail.`
-
-    const userPrompt = `Create a ${video_length_minutes}-minute ${tone} tone ${platform} video about: "${topic}"${description ? `\nContext: ${description}` : ''}`
-
-    console.log('[API] Calling OpenAI API...')
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 4000,
-      }),
-    })
-
-    if (!openaiResponse.ok) {
-      const error = await openaiResponse.json()
-      console.error('[API] OpenAI error:', error)
-      throw new Error(error.error?.message || 'OpenAI API failed')
-    }
-
-    const openaiData = await openaiResponse.json()
-    let content = openaiData.choices[0].message.content.trim()
-    console.log('[API] OpenAI response received')
       console.log('[API] Calling OpenAI API with model gpt-4o-mini')
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -227,30 +209,18 @@ Return JSON with: script (title, duration, content, full_narration, sections), s
         }),
       })
 
-    let generatedContent
-    try {
-      const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
-      if (jsonMatch) {
-        generatedContent = JSON.parse(jsonMatch[1])
-      } else {
-        generatedContent = JSON.parse(content)
+      if (!openaiResponse.ok) {
+        const error = await openaiResponse.json()
+        console.error('[API] OpenAI error:', error)
+        throw new Error(error.error?.message || 'OpenAI API failed')
       }
-    } catch (parseError) {
-      console.error('[API] JSON parse error:', parseError)
-      throw new Error('Failed to parse OpenAI response as JSON')
-    }
 
-    // Save to cache and database
-    await cache.set(`job:${jobId}:status`, 'completed')
-    await cache.set(`job:${jobId}:progress`, 'Complete!')
-    await cache.set(`job:${jobId}:data`, JSON.stringify(generatedContent))
+      const openaiData = await openaiResponse.json()
+      let content = openaiData.choices[0].message.content.trim()
+      console.log('[API] OpenAI response received')
 
-    if (supabase) {
+      let generatedContent
       try {
-        await supabase.from('results').insert({
-          id: jobId,
-          user_id: userId,
-          processing_status: 'completed',
         const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
         let jsonStr = jsonMatch ? jsonMatch[1] : content
         
@@ -296,6 +266,11 @@ Return JSON with: script (title, duration, content, full_narration, sections), s
         throw new Error('Failed to parse generated content as JSON. The response may be incomplete.')
       }
 
+      // Save to cache
+      await cache.set(`job:${jobId}:status`, 'completed')
+      await cache.set(`job:${jobId}:progress`, 'Complete!')
+      await cache.set(`job:${jobId}:data`, JSON.stringify(generatedContent))
+
       // Update result with generated content
       const { error: updateError } = await supabase
         .from('results')
@@ -305,19 +280,29 @@ Return JSON with: script (title, duration, content, full_narration, sections), s
           capcut_steps: generatedContent.capcut_steps || [],
           seo: generatedContent.seo,
           thumbnail: generatedContent.thumbnail,
+          processing_status: 'completed',
         })
-      } catch (dbError) {
-        console.error('[API] Database error (non-blocking):', dbError)
+        .eq('id', resultId)
+
+      if (updateError) {
+        console.error('[API] Database update error (non-blocking):', updateError)
       }
+
+      console.log('[API] Job completed:', jobId)
+
+      return NextResponse.json({
+        jobId,
+        status: 'completed',
+        data: generatedContent,
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[API] Error:', errorMessage)
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: 500 }
+      )
     }
-
-    console.log('[API] Job completed:', jobId)
-
-    return NextResponse.json({
-      jobId,
-      status: 'completed',
-      data: generatedContent,
-    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('[API] Error:', errorMessage)
