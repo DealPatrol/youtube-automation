@@ -1,5 +1,44 @@
 import { NextResponse } from 'next/server'
 
+/**
+ * Validates that a URL is allowed to be fetched.
+ * Only allows:
+ * - Data URLs (base64 encoded audio)
+ * - HTTPS URLs from whitelisted domains
+ */
+function isValidAudioUrl(url: string): boolean {
+  try {
+    // Allow data URLs (used for base64-encoded audio from our own generation)
+    if (url.startsWith('data:audio/')) {
+      return true
+    }
+
+    // Parse URL to validate format
+    const parsedUrl = new URL(url)
+
+    // Only allow HTTPS
+    if (parsedUrl.protocol !== 'https:') {
+      return false
+    }
+
+    // Whitelist of allowed domains
+    const allowedDomains = [
+      'cdn.example.com',
+      'media.example.com',
+      // Add your legitimate audio storage domains here
+    ]
+
+    // Check if domain is in whitelist
+    const isAllowed = allowedDomains.some(
+      domain => parsedUrl.hostname === domain || parsedUrl.hostname?.endsWith('.' + domain)
+    )
+
+    return isAllowed
+  } catch {
+    return false
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { audioUrl, jobId } = await request.json()
@@ -7,6 +46,15 @@ export async function POST(request: Request) {
     if (!audioUrl || !jobId) {
       return NextResponse.json(
         { error: 'audioUrl and jobId required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate audioUrl to prevent SSRF attacks
+    if (!isValidAudioUrl(audioUrl)) {
+      console.warn(`[Captions] Rejected invalid/untrusted audio URL for job ${jobId}: ${audioUrl}`)
+      return NextResponse.json(
+        { error: 'Invalid or untrusted audio URL' },
         { status: 400 }
       )
     }
