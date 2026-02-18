@@ -143,7 +143,6 @@
     background-size: 300% 300%;
     animation: gradient-shift 8s ease infinite;
   }
-  }
 
   .dark .gradient-accent {
     background: linear-gradient(135deg, oklch(0.65 0.32 290) 0%, oklch(0.78 0.28 140) 100%);

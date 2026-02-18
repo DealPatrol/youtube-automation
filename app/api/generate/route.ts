@@ -4,21 +4,6 @@ import { NextResponse } from 'next/server'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-<<<<<<< HEAD
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
-
-=======
->>>>>>> daff056 (Refactor Supabase credential handling in API route; update scene duration logic for video generation; enhance TypeScript configuration and add workspace settings.)
 export async function POST(request: Request) {
   try {
     if (!supabaseUrl || !supabaseKey) {
@@ -115,20 +100,20 @@ export async function POST(request: Request) {
       console.log('[API] Result created:', resultId)
 
       // Call OpenAI API to generate content
-    const totalSeconds = video_length_minutes * 60
-    const requestedSceneSeconds =
-      platform === 'tiktok' && tiktok_clip_duration > 0
-        ? tiktok_clip_duration
-        : youtube_clip_duration > 0
-          ? youtube_clip_duration
-          : 10
-    let numScenes = Math.max(Math.floor(totalSeconds / requestedSceneSeconds), 10)
-    const maxScenes = 30
-    if (numScenes > maxScenes) {
-      numScenes = maxScenes
-    }
-    const avgSceneSeconds = Math.max(Math.round(totalSeconds / numScenes), 8)
-      
+      const totalSeconds = video_length_minutes * 60
+      const requestedSceneSeconds =
+        platform === 'tiktok' && tiktok_clip_duration > 0
+          ? tiktok_clip_duration
+          : youtube_clip_duration > 0
+            ? youtube_clip_duration
+            : 10
+      let numScenes = Math.max(Math.floor(totalSeconds / requestedSceneSeconds), 10)
+      const maxScenes = 30
+      if (numScenes > maxScenes) {
+        numScenes = maxScenes
+      }
+      const avgSceneSeconds = Math.max(Math.round(totalSeconds / numScenes), 8)
+
       const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON (no markdown, no code blocks, no explanations).
 
 CRITICAL: Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute (${totalSeconds} seconds) video. Each scene should be about ${avgSceneSeconds} seconds long.
@@ -202,16 +187,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.7,
-<<<<<<< HEAD
-          max_tokens: 8000,
-=======
-<<<<<<< HEAD
-          max_tokens: 4000,
->>>>>>> daff056 (Refactor Supabase credential handling in API route; update scene duration logic for video generation; enhance TypeScript configuration and add workspace settings.)
-          response_format: { type: 'json_object' },
-=======
           max_tokens: 6000,
->>>>>>> 13baf4d (Refactor Supabase credential handling in API route; update scene duration logic for video generation; enhance TypeScript configuration and add workspace settings.)
         }),
       })
 
