@@ -131,6 +131,9 @@ Return this exact JSON structure:
     await cache.set(`job:${jobId}:status`, 'completed')
     await cache.set(`job:${jobId}:progress`, 'Complete!')
     await cache.set(`job:${jobId}:data`, JSON.stringify(generatedContent))
+    
+    // Remove from job queue
+    await cache.zrem('job_queue', jobId)
 
     console.log(`[Worker] Job ${jobId} completed successfully`)
   } catch (error) {
@@ -139,6 +142,9 @@ Return this exact JSON structure:
     
     await cache.set(`job:${jobId}:status`, 'failed')
     await cache.set(`job:${jobId}:error`, errorMessage)
+    
+    // Remove from job queue even on failure
+    await cache.zrem('job_queue', jobId)
   }
 }
 
@@ -158,8 +164,19 @@ export async function POST(request: Request) {
       )
     }
 
-    // Get the first job from queue
-    const jobs = await cache.mget<any>([])
+    // Get pending job IDs from the sorted set queue
+    const jobIds = await cache.zrange('job_queue', 0, 9) // Get up to 10 jobs
+    
+    if (!jobIds || jobIds.length === 0) {
+      return NextResponse.json({
+        processed: 0,
+        message: 'No jobs in queue',
+      })
+    }
+
+    // Fetch the actual job data for those IDs
+    const jobKeys = jobIds.map(id => `job:${id}`)
+    const jobs = await cache.mget<any>(jobKeys)
     
     if (!jobs || jobs.length === 0) {
       return NextResponse.json({

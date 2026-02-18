@@ -106,6 +106,24 @@ export const cache = {
       return keys.map(() => null)
     }
   },
+
+  async zrange(key: string, start: number = 0, stop: number = -1): Promise<string[]> {
+    try {
+      const data = await redis.zrange(key, start, stop)
+      return data as string[]
+    } catch (error) {
+      console.error('[v0] Redis zrange error:', error)
+      return []
+    }
+  },
+
+  async zrem(key: string, member: string): Promise<void> {
+    try {
+      await redis.zrem(key, member)
+    } catch (error) {
+      console.error('[v0] Redis zrem error:', error)
+    }
+  },
 }
 
 /**
