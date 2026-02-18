@@ -52,7 +52,7 @@ export default function GeneratorPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic: videoTopic,
+          topic,
           description,
           video_length_minutes: parseInt(videoLength),
           youtube_clip_duration: parseInt(youtubeClipDuration),
@@ -70,8 +70,6 @@ export default function GeneratorPage() {
           throw new Error(errorData.error || 'Failed to generate video')
         } catch {
           throw new Error('Failed to generate video')
-          // Use default error message if JSON parsing fails
-          errorMessage = text || errorMessage
         }
       }
 
@@ -125,17 +123,6 @@ export default function GeneratorPage() {
         }
 
         pollCount++
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch (parseErr) {
-        console.error('[v0] JSON parse error:', parseErr)
-        console.error('[v0] Response text:', text)
-        throw new Error(`Invalid response from server: ${text.substring(0, 100)}`)
-      }
-      
-      if (!data.resultId) {
-        throw new Error('No result ID received from server')
       }
 
       if (pollCount >= maxPolls) {
@@ -214,8 +201,8 @@ export default function GeneratorPage() {
                 <label className="text-sm font-medium">Video Topic</label>
                 <Input
                   placeholder="e.g., How to learn Python programming"
-                  value={videoTopic}
-                  onChange={(e) => setVideoTopic(e.target.value)}
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
                   className="bg-input border-border"
                   required
                 />

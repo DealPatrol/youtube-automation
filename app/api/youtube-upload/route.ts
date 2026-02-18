@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    const { searchParams } = new URL(request.url)
     const resultId = searchParams.get('resultId')
     const accessToken = searchParams.get('accessToken')
 

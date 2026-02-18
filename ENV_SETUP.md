@@ -24,6 +24,12 @@ NEXTAUTH_URL=https://your-domain.com (or http://localhost:3000 for local dev)
 OPENAI_API_KEY=your_openai_api_key
 \`\`\`
 
+**Upstash Redis (for job queue and caching):**
+\`\`\`
+KV_REST_API_URL=your_upstash_redis_rest_url
+KV_REST_API_TOKEN=your_upstash_redis_rest_token
+\`\`\`
+
 ### Optional Variables
 
 **Firebase (if using for auth/storage):**
@@ -84,18 +90,28 @@ UNSPLASH_ACCESS_KEY=your_unsplash_api_key
 - Set usage limits for safety
 - Copy → `OPENAI_API_KEY`
 
-### 4. Firebase (Optional)
+### 4. Upstash Redis (Job Queue & Caching)
+- Go to [upstash.com](https://upstash.com)
+- Create a free account
+- Click "Create Database"
+- Choose a region close to your deployment
+- After creation, go to database details
+- Scroll to "REST API" section
+- Copy "UPSTASH_REDIS_REST_URL" → `KV_REST_API_URL`
+- Copy "UPSTASH_REDIS_REST_TOKEN" → `KV_REST_API_TOKEN`
+
+### 5. Firebase (Optional)
 - Go to [firebase.google.com](https://firebase.google.com)
 - Create project
 - Go to Project Settings
 - Copy values from "Your apps" section
 
-### 5. Stripe (Optional)
+### 6. Stripe (Optional)
 - Go to [stripe.com](https://stripe.com)
 - Create product and price
 - Copy price ID → `STRIPE_PRICE_ID_PRO`
 
-### 6. Unsplash (Optional - for stock images)
+### 7. Unsplash (Optional - for stock images)
 - Go to [unsplash.com/developers](https://unsplash.com/developers)
 - Create application
 - Copy Access Key → `UNSPLASH_ACCESS_KEY`
@@ -116,6 +132,10 @@ YOUTUBE_CLIENT_SECRET=your_secret
 
 # OpenAI
 OPENAI_API_KEY=your_key
+
+# Upstash Redis (Job Queue)
+KV_REST_API_URL=your_upstash_url
+KV_REST_API_TOKEN=your_upstash_token
 
 # Optional - FastAPI Backend
 FASTAPI_URL=http://localhost:8000
