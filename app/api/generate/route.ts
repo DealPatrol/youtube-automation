@@ -7,15 +7,6 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 let supabase: any = null
 if (supabaseUrl && supabaseKey) {
-  supabase = createClient(supabaseUrl, supabaseKey)
-}
-
-export async function POST(request: Request) {
-  try {
-    console.log('[API] Generate request received')
-    
-
-if (supabaseUrl && supabaseKey) {
   try {
     supabase = createClient(supabaseUrl, supabaseKey)
   } catch (error) {
@@ -27,6 +18,8 @@ if (supabaseUrl && supabaseKey) {
 
 export async function POST(request: Request) {
   try {
+    console.log('[API] Generate request received')
+    
     if (!supabase) {
       return NextResponse.json(
         { error: 'Supabase not configured' },

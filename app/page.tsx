@@ -1,16 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card } from '@/components/ui/card'
-import { Sparkles, Zap, Palette, BookOpen, Music, BarChart3 } from 'lucide-react'
-
-export default function Home() {
-  const [videoTopic, setVideoTopic] = useState('')
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, Loader2, Sparkles, Zap, TrendingUp } from 'lucide-react'
+import { AlertCircle, Loader2, Sparkles, Zap, TrendingUp, Palette, BookOpen, Music, BarChart3 } from 'lucide-react'
 import { useAuth } from '@/lib/auth/auth-context'
 
 export default function GeneratorPage() {
@@ -22,14 +17,11 @@ export default function GeneratorPage() {
   const [videoLength, setVideoLength] = useState('10')
   const [tone, setTone] = useState('neutral')
   const [platform, setPlatform] = useState('youtube')
-  const [youtubeClipDuration, setYoutubeClipDuration] = useState('0')
+  const [youtubeClipDuration, setYoutubeClipDuration] = useState('15')
   const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [progress, setProgress] = useState('')
-  const router = useRouter()
-  const [youtubeClipDuration, setYoutubeClipDuration] = useState('15')
-  const [tiktokClipDuration, setTiktokClipDuration] = useState('15')
 
   // Redirect to login if not authenticated
   useEffect(() => {

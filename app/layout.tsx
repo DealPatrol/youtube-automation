@@ -62,17 +62,12 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Header />
-          {children}
-          <Analytics />
+          <AuthProvider>
+            <Header />
+            {children}
+            <Analytics />
+          </AuthProvider>
         </ThemeProvider>
-    <html lang="en" className="bg-background">
-      <body className={`font-sans antialiased`}>
-        <AuthProvider>
-          <Header />
-          {children}
-        </AuthProvider>
-        <Analytics />
       </body>
     </html>
   )

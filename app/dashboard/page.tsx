@@ -1,12 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Plus, Search, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
@@ -23,14 +20,17 @@ import {
   TrendingUp,
   Zap,
   CheckCircle,
+  CheckCircle2,
   Youtube,
   CreditCard,
   Upload,
   PlayCircle,
   PauseCircle,
   Loader2,
+  Search,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth/auth-context'
+import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -39,35 +39,23 @@ const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabase
 interface Project {
   id: string
   title: string
-  platform: string
-  status: 'completed' | 'processing'
-  date: string
+  platform?: string
+  status?: 'completed' | 'processing' | 'draft' | 'published' | 'scheduled'
+  date?: string
+  topic?: string
+  created_at?: string
+  scheduled_for?: string
+  video_url?: string
+  views?: number
 }
 
-export default function Dashboard() {
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: '1',
-      title: 'How to Learn Python',
-      platform: 'YouTube',
-      status: 'completed',
-      date: '2 days ago',
-    },
-    {
-      id: '2',
-      title: 'Web Development Basics',
-      platform: 'TikTok',
-      status: 'processing',
-      date: '1 hour ago',
-    },
-    {
-      id: '3',
-      title: 'AI for Beginners',
-      platform: 'YouTube',
-      status: 'completed',
-      date: '5 days ago',
-    },
-  ])
+interface UserStats {
+  videosCreated: number
+  videosPublished: number
+  totalViews: number
+  scheduledVideos: number
+}
+
 interface PlanLimits {
   plan: 'free' | 'pro' | 'enterprise'
   videosUsed: number
