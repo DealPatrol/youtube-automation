@@ -17,92 +17,91 @@ if (supabaseUrl && supabaseKey) {
 }
 
 export async function POST(request: Request) {
+  console.log('[API] Generate request received')
+  
+  if (!supabase) {
+    return NextResponse.json(
+      { error: 'Supabase not configured' },
+      { status: 500 }
+    )
+  }
+
+  const openaiKey = process.env.OPENAI_API_KEY?.trim()
+  
+  if (!openaiKey) {
+    console.error('[API] Missing OPENAI_API_KEY')
+    return NextResponse.json(
+      { error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.' },
+      { status: 500 }
+    )
+  }
+
+  if (!openaiKey.startsWith('sk-')) {
+    console.error('[API] Invalid OPENAI_API_KEY format')
+    return NextResponse.json(
+      { error: 'Invalid OpenAI API key format. API key should start with "sk-"' },
+      { status: 500 }
+    )
+  }
+
+  // Check Redis configuration before proceeding
+  const redisClient = getRedis()
+  if (!redisClient) {
+    console.error('[API] Redis not configured - KV_REST_API_URL and KV_REST_API_TOKEN required')
+    return NextResponse.json(
+      { error: 'Redis not configured. Please add KV_REST_API_URL and KV_REST_API_TOKEN to your environment variables.' },
+      { status: 500 }
+    )
+  }
+
+  let body: {
+    topic?: string
+    description?: string
+    video_length_minutes?: number
+    youtube_clip_duration?: number
+    tiktok_clip_duration?: number
+    tone?: string
+    platform?: string
+    user_id?: string
+  }
   try {
-    console.log('[API] Generate request received')
-    
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
-    }
+    body = await request.json()
+    console.log('[API] Request body parsed successfully')
+  } catch (parseError) {
+    console.error('[API] Failed to parse request JSON:', parseError)
+    return NextResponse.json(
+      { error: 'Invalid request body' },
+      { status: 400 }
+    )
+  }
 
-    const openaiKey = process.env.OPENAI_API_KEY?.trim()
-    
-    if (!openaiKey) {
-      console.error('[API] Missing OPENAI_API_KEY')
-      return NextResponse.json(
-        { error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.' },
-        { status: 500 }
-      )
-    }
+  const { 
+    topic, 
+    description, 
+    video_length_minutes, 
+    youtube_clip_duration = 0, 
+    tiktok_clip_duration = 15, 
+    tone, 
+    platform,
+    user_id 
+  } = body
 
-    if (!openaiKey.startsWith('sk-')) {
-      console.error('[API] Invalid OPENAI_API_KEY format')
-      return NextResponse.json(
-        { error: 'Invalid OpenAI API key format. API key should start with "sk-"' },
-        { status: 500 }
-      )
-    }
+  console.log('[API] Request params:', { topic, video_length_minutes, tone, platform })
 
-    // Check Redis configuration before proceeding
-    const redisClient = getRedis()
-    if (!redisClient) {
-      console.error('[API] Redis not configured - KV_REST_API_URL and KV_REST_API_TOKEN required')
-      return NextResponse.json(
-        { error: 'Redis not configured. Please add KV_REST_API_URL and KV_REST_API_TOKEN to your environment variables.' },
-        { status: 500 }
-      )
-    }
+  if (!topic || !video_length_minutes || !tone || !platform) {
+    console.error('[API] Missing required fields')
+    return NextResponse.json(
+      { error: 'Missing required fields: topic, video_length_minutes, tone, platform' },
+      { status: 400 }
+    )
+  }
 
-    let body: {
-      topic?: string
-      description?: string
-      video_length_minutes?: number
-      youtube_clip_duration?: number
-      tiktok_clip_duration?: number
-      tone?: string
-      platform?: string
-      user_id?: string
-    }
-    try {
-      body = await request.json()
-      console.log('[API] Request body parsed successfully')
-    } catch (parseError) {
-      console.error('[API] Failed to parse request JSON:', parseError)
-      return NextResponse.json(
-        { error: 'Invalid request body' },
-        { status: 400 }
-      )
-    }
+  const userId = user_id || 'anonymous-user'
+  const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  let projectId = ''
+  let resultId = ''
 
-    const { 
-      topic, 
-      description, 
-      video_length_minutes, 
-      youtube_clip_duration = 0, 
-      tiktok_clip_duration = 15, 
-      tone, 
-      platform,
-      user_id 
-    } = body
-
-    console.log('[API] Request params:', { topic, video_length_minutes, tone, platform })
-
-    if (!topic || !video_length_minutes || !tone || !platform) {
-      console.error('[API] Missing required fields')
-      return NextResponse.json(
-        { error: 'Missing required fields: topic, video_length_minutes, tone, platform' },
-        { status: 400 }
-      )
-    }
-
-    const userId = user_id || 'anonymous-user'
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    let projectId = ''
-    let resultId = ''
-
-    try {
+  try {
       // Create project
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
@@ -295,14 +294,6 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
         status: 'completed',
         data: generatedContent,
       })
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      console.error('[API] Error:', errorMessage)
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: 500 }
-      )
-    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('[API] Error:', errorMessage)
