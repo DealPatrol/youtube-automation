@@ -388,7 +388,7 @@ export default function ResultsPage() {
           </TabsContent>
 
           <TabsContent value="capcut" className="space-y-4">
-            <CapCutTab capCutSteps={result.capcut_steps} />
+            <CapCutTab steps={result.capcut_steps} />
           </TabsContent>
 
           <TabsContent value="seo" className="space-y-4">

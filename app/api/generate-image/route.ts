@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     console.log('[API] Generating image for prompt:', prompt.substring(0, 100))
 
     // Map aspect ratios to fal.ai image sizes
-    const imageSizeMap: Record<string, string> = {
+    const imageSizeMap: Record<string, 'landscape_16_9' | 'landscape_4_3' | 'square' | 'portrait_16_9'> = {
       '16:9': 'landscape_16_9',
       '4:3': 'landscape_4_3',
       '1:1': 'square',

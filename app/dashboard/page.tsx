@@ -159,12 +159,14 @@ export default function DashboardPage() {
       rendering: { variant: 'secondary', icon: Zap },
       scheduled: { variant: 'default', icon: Calendar },
       published: { variant: 'default', icon: CheckCircle },
+      completed: { variant: 'default', icon: CheckCircle },
+      processing: { variant: 'secondary', icon: Zap },
     }
-    const { variant, icon: Icon } = variants[status] || variants.draft
+    const { variant, icon: Icon } = variants[status || 'draft'] || variants.draft
     return (
       <Badge variant={variant} className="gap-1">
         <Icon className="w-3 h-3" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Draft'}
       </Badge>
     )
   }

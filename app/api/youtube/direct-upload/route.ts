@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     // Upload to YouTube
     const response = await youtube.videos.insert(
       {
-        part: 'snippet,status',
+        part: ['snippet', 'status'],
         requestBody: {
           snippet: {
             title: title || 'Untitled Video',
@@ -152,15 +152,13 @@ export async function POST(request: NextRequest) {
             madeForKids: false,
           },
         },
-      },
-      {
         media: {
           body: Buffer.from(buffer),
         },
-      } as any
+      }
     )
 
-    const youtubeVideoId = response.data.id
+    const youtubeVideoId = response.data.id as string
     const youtubeUrl = `https://youtube.com/watch?v=${youtubeVideoId}`
 
     console.log('[API] Video uploaded successfully:', youtubeUrl)

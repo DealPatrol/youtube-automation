@@ -55,7 +55,7 @@ async function uploadVideoToYouTube(
     // Upload video with resumable upload
     const response = await youtube.videos.insert(
       {
-        part: 'snippet,status,processingDetails',
+        part: ['snippet', 'status', 'processingDetails'],
         requestBody: {
           snippet: {
             title: metadata.title || 'Untitled Video',
@@ -115,7 +115,7 @@ async function getYouTubeUploadStatus(videoId: string, accessToken: string) {
     })
 
     const response = await youtube.videos.list({
-      part: 'processingDetails,status,snippet',
+      part: ['processingDetails', 'status', 'snippet'],
       id: [videoId],
     })
 
