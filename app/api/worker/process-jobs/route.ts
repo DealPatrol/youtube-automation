@@ -212,22 +212,9 @@ export async function POST(request: Request) {
 // Auto-process jobs via cron or manual trigger
 export async function GET(request: Request) {
   try {
-    if (!openaiKey) {
-      return NextResponse.json(
-        { error: 'OPENAI_API_KEY not configured' },
-        { status: 500 }
-      )
-    }
-
-    // Scan for queued jobs and process them
-    const processed = 0
     console.log('[Worker] GET called to process jobs')
-    
-    return NextResponse.json({
-      processed,
-      timestamp: new Date().toISOString(),
-      message: 'Worker is ready to process jobs',
-    })
+    // Delegate to POST handler so cron-triggered GET requests process jobs
+    return await POST(request)
   } catch (error) {
     console.error('[Worker] GET error:', error)
     return NextResponse.json(
