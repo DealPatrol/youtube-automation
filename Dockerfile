@@ -25,16 +25,16 @@ WORKDIR /app
 
 # Copy package files and install
 COPY package*.json ./
-RUN npm ci --production
+RUN npm ci
 
 # Copy app source
 COPY . .
 
-# Ensure Remotion browser dependencies (if using Remotion)
-RUN npx remotion browser ensure || true
+# Build Next.js application
+RUN npm run build
 
 ENV NODE_ENV=production
 EXPOSE 3000
 
-# Start the worker process (adjust if your entry file differs)
-CMD ["node", "worker.js"]
+# Start the Next.js application
+CMD ["npm", "start"]
