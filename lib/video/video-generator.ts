@@ -60,6 +60,7 @@ export async function generateSceneAudio(scenes: VideoScene[]): Promise<VideoSce
       updatedScenes.push({
         ...scene,
         audio_url: data.audioUrl,
+        duration: typeof data.duration === 'number' && data.duration > 0 ? data.duration : scene.duration,
       })
 
       console.log(`[v0] Scene ${scene.id} voiceover generated`)

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       try {
         const { data, error: dbError } = await supabase
           .from('results')
-          .select('*, projects(user_id)')
+          .select('*, projects(clip_duration_seconds)')
           .eq('id', resultId)
           .single()
 
@@ -77,13 +77,15 @@ export async function POST(request: Request) {
       )
     }
 
-    const clipDuration = project?.clip_duration_seconds || 5
+    const clipDuration = result?.projects?.clip_duration_seconds || 5
 
     // Update status to rendering
-    await supabase
-      .from('results')
-      .update({ processing_status: 'rendering' })
-      .eq('id', resultId)
+    if (supabase) {
+      await supabase
+        .from('results')
+        .update({ processing_status: 'rendering' })
+        .eq('id', resultId)
+    }
 
     let scenesWithContent
     let successMessage
@@ -106,13 +108,15 @@ export async function POST(request: Request) {
     console.log('[API] Generation complete, updating database...')
 
     // Update result with scene content
-    const { error: updateError } = await supabase
-      .from('results')
-      .update({
-        scenes: scenesWithContent,
-        processing_status: 'completed',
-      })
-      .eq('id', resultId)
+    const { error: updateError } = supabase
+      ? await supabase
+          .from('results')
+          .update({
+            scenes: scenesWithContent,
+            processing_status: 'completed',
+          })
+          .eq('id', resultId)
+      : { error: null }
 
     if (updateError) {
       console.error('[API] Failed to update scenes:', updateError)
@@ -134,7 +138,7 @@ export async function POST(request: Request) {
 
     // Update status to error
     try {
-      if (resultId) {
+      if (resultId && supabase) {
         await supabase
           .from('results')
           .update({
