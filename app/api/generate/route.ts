@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -172,39 +173,56 @@ CRITICAL REQUIREMENTS:
 
 Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
 
-      console.log('[API] Calling OpenAI API with model gpt-4o-mini')
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.7,
-          max_tokens: 6000,
-        }),
-      })
+    console.log('[API] Calling OpenAI API with responses API')
+    const client = new OpenAI({ apiKey: openaiKey })
+    const promptId = process.env.OPENAI_PROMPT_ID
+    const promptVersion = process.env.OPENAI_PROMPT_VERSION || '1'
 
-      if (!openaiResponse.ok) {
-        const error = await openaiResponse.json()
-        console.error('[API] OpenAI error response:', JSON.stringify(error, null, 2))
-        
-        if (error.error?.code === 'invalid_api_key') {
-          throw new Error('Invalid OpenAI API key. Please check your API key in the Vars section and ensure it starts with "sk-".')
-        }
-        
-        throw new Error(error.error?.message || 'OpenAI API request failed')
+    let response
+    try {
+      response = promptId
+        ? await client.responses.create({
+            prompt: { id: promptId, version: promptVersion },
+            input: {
+              topic,
+              description,
+              video_length_minutes,
+              youtube_clip_duration,
+              tiktok_clip_duration,
+              tone,
+              platform,
+              totalSeconds,
+              numScenes,
+              avgSceneSeconds,
+            },
+          })
+        : await client.responses.create({
+            model: 'gpt-4o-mini',
+            input: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.7,
+            max_output_tokens: 6000,
+            response_format: { type: 'json_object' },
+          })
+    } catch (error: any) {
+      const errorPayload = error?.error ?? error
+      console.error('[API] OpenAI error response:', JSON.stringify(errorPayload, null, 2))
+      if (errorPayload?.code === 'invalid_api_key') {
+        throw new Error('Invalid OpenAI API key. Please check your API key in the Vars section and ensure it starts with "sk-".')
       }
+      throw new Error(errorPayload?.message || 'OpenAI API request failed')
+    }
 
-      const openaiData = await openaiResponse.json()
-      let content = openaiData.choices[0].message.content.trim()
-      console.log('[API] Received OpenAI response, parsing...')
+    const outputText =
+      response.output_text ??
+      response.output
+        ?.map((item: any) => item.content?.map((part: any) => part.text || '').join(''))
+        .join('') ??
+      ''
+    let content = outputText.trim()
+    console.log('[API] Received OpenAI response, parsing...')
 
       // Parse the JSON response (repair if needed)
       let generatedContent
