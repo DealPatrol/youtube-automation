@@ -112,15 +112,15 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'generateScript':
-        return await handleGenerateScript(request)
+        return await handleGenerateScript(request, db, openai)
       case 'generateVideo':
-        return await handleGenerateVideo(request)
+        return await handleGenerateVideo(request, db)
       case 'publishNow':
-        return await handlePublishNow(request)
+        return await handlePublishNow(request, db)
       case 'schedule':
-        return await handleSchedule(request)
+        return await handleSchedule(request, db)
       case 'runDueSchedules':
-        return await handleRunDueSchedules(request)
+        return await handleRunDueSchedules(request, db)
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
@@ -134,7 +134,11 @@ export async function POST(request: NextRequest) {
 }
 
 // ---------- 1) SCRIPT GENERATION ----------
-async function handleGenerateScript(request: NextRequest) {
+async function handleGenerateScript(
+  request: NextRequest,
+  db: admin.firestore.Firestore,
+  openai: OpenAI
+) {
   const body = await request.json()
   const { topic, tone = 'educational', length = 'short' } = body
 
@@ -169,7 +173,7 @@ Format: Hook, value, CTA. Return plain text only.
 }
 
 // ---------- 2) VIDEO GENERATION (CALL YOUR EXISTING APP) ----------
-async function handleGenerateVideo(request: NextRequest) {
+async function handleGenerateVideo(request: NextRequest, db: admin.firestore.Firestore) {
   const body = await request.json()
   const { jobId } = body
 
@@ -222,7 +226,7 @@ async function handleGenerateVideo(request: NextRequest) {
 }
 
 // ---------- 3) PUBLISH NOW TO YOUTUBE ----------
-async function handlePublishNow(request: NextRequest) {
+async function handlePublishNow(request: NextRequest, db: admin.firestore.Firestore) {
   const body = await request.json()
   const { jobId, title, description, privacyStatus = 'public' } = body
 
@@ -239,10 +243,6 @@ async function handlePublishNow(request: NextRequest) {
       { error: 'YouTube credentials not configured', details: message },
       { status: 500 }
     )
-  }
-
-  if (!db) {
-    return NextResponse.json({ error: 'Database not available' }, { status: 500 })
   }
 
   const jobSnap = await db.collection('jobs').doc(jobId).get()
@@ -301,7 +301,7 @@ async function handlePublishNow(request: NextRequest) {
 }
 
 // ---------- 4) SCHEDULE A FUTURE PUBLISH ----------
-async function handleSchedule(request: NextRequest) {
+async function handleSchedule(request: NextRequest, db: admin.firestore.Firestore) {
   const body = await request.json()
   const { jobId, runAt } = body
 
@@ -325,7 +325,7 @@ async function handleSchedule(request: NextRequest) {
 }
 
 // ---------- 5) CRON: RUN DUE SCHEDULES ----------
-async function handleRunDueSchedules(request: NextRequest) {
+async function handleRunDueSchedules(request: NextRequest, db: admin.firestore.Firestore) {
   let youtube
   try {
     youtube = getYouTubeClient()
@@ -336,10 +336,6 @@ async function handleRunDueSchedules(request: NextRequest) {
       { error: 'YouTube credentials not configured', details: message },
       { status: 500 }
     )
-  }
-
-  if (!db) {
-    return NextResponse.json({ error: 'Database not available' }, { status: 500 })
   }
 
   const now = admin.firestore.Timestamp.now()
