@@ -97,7 +97,7 @@ export async function POST(request: Request) {
   }
 
   const userId = user_id || 'anonymous-user'
-  const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
   let projectId = ''
   let resultId = ''
 
