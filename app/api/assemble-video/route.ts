@@ -32,6 +32,7 @@ interface AssembleVideoRequest {
     backgroundMusicVolume?: number
     brandingLogoUrl?: string
     brandingLogoPosition?: string
+    useWhisperCaptions?: boolean
   }
 }
 
@@ -356,6 +357,120 @@ async function ensureFfmpegAvailable() {
   }
 }
 
+async function transcribeAudioToWords(
+  audioPath: string,
+  apiKey: string
+): Promise<Array<{ start: number; end: number; text: string }>> {
+  const fileBuffer = await fs.promises.readFile(audioPath)
+  const formData = new FormData()
+  formData.append('file', new Blob([fileBuffer], { type: 'audio/mpeg' }), 'audio.mp3')
+  formData.append('model', 'whisper-1')
+  formData.append('response_format', 'verbose_json')
+  formData.append('timestamp_granularities[]', 'word')
+
+  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Whisper transcription failed: ${response.status} ${errorText}`)
+  }
+
+  const data = await response.json()
+  const words = Array.isArray(data.words) ? data.words : []
+  return words
+    .filter((word: any) => typeof word.start === 'number' && typeof word.end === 'number')
+    .map((word: any) => ({
+      start: word.start,
+      end: word.end,
+      text: String(word.word || '').trim(),
+    }))
+    .filter((word: any) => word.text.length > 0)
+}
+
+function buildVttFromWords(
+  words: Array<{ start: number; end: number; text: string }>,
+  offsetSeconds: number
+): string {
+  const cues: string[] = []
+  let buffer: string[] = []
+  let cueStart = 0
+  let cueEnd = 0
+
+  const flush = () => {
+    if (!buffer.length) return
+    const start = formatTimestamp(cueStart + offsetSeconds)
+    const end = formatTimestamp(cueEnd + offsetSeconds)
+    cues.push(`${start} --> ${end}\n${buffer.join(' ')}`)
+    buffer = []
+  }
+
+  words.forEach((word, index) => {
+    if (buffer.length === 0) {
+      cueStart = word.start
+    }
+    cueEnd = word.end
+    buffer.push(word.text)
+
+    const nextWord = words[index + 1]
+    const isGap = nextWord ? nextWord.start - word.end > 0.6 : true
+    if (buffer.length >= 7 || isGap) {
+      flush()
+    }
+  })
+
+  flush()
+  return `WEBVTT\n\n${cues.join('\n\n')}\n`
+}
+
+async function createWhisperVttFromScenes(
+  scenes: SceneAsset[],
+  defaultDuration: number
+): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return null
+
+  let cursor = 0
+  const allCues: string[] = []
+
+  for (const scene of scenes) {
+    const duration = resolveDuration(scene, defaultDuration)
+    const audioUrl = scene.audio_url
+    if (!audioUrl) {
+      cursor += duration
+      continue
+    }
+
+    const audioPath = path.join(os.tmpdir(), `audio_${scene.id}_${Date.now()}.mp3`)
+    try {
+      await downloadToFile(audioUrl, audioPath)
+      const words = await transcribeAudioToWords(audioPath, apiKey)
+      if (words.length > 0) {
+        const vtt = buildVttFromWords(words, cursor)
+        const withoutHeader = vtt.replace(/^WEBVTT\n\n/, '')
+        allCues.push(withoutHeader.trim())
+      }
+    } finally {
+      if (fs.existsSync(audioPath)) {
+        await fs.promises.rm(audioPath, { force: true })
+      }
+    }
+
+    cursor += duration
+  }
+
+  if (!allCues.length) {
+    return null
+  }
+
+  return `WEBVTT\n\n${allCues.join('\n\n')}\n`
+}
+
 function resolveAssemblyEndpoint(): string | null {
   if (videoAssemblyUrl) {
     return videoAssemblyUrl
@@ -422,6 +537,7 @@ export async function POST(request: Request) {
         : undefined
     const requestBrandingLogoUrl = requestOptions.brandingLogoUrl?.trim()
     const requestBrandingLogoPosition = requestOptions.brandingLogoPosition?.trim()
+    const requestUseWhisperCaptions = Boolean(requestOptions.useWhisperCaptions)
 
     const assemblyEndpoint = resolveAssemblyEndpoint()
     if (assemblyEndpoint) {
@@ -440,6 +556,7 @@ export async function POST(request: Request) {
             backgroundMusicVolume: requestBackgroundMusicVolume ?? backgroundMusicVolume,
             brandingLogoUrl: requestBrandingLogoUrl || brandingLogoUrl,
             brandingLogoPosition: requestBrandingLogoPosition || brandingLogoPosition,
+            useWhisperCaptions: requestUseWhisperCaptions,
           },
         }),
       })
@@ -547,7 +664,9 @@ export async function POST(request: Request) {
     }
 
     let subtitleUrl: string | null = null
-    const captions = createVttFromScenes(scenes, defaultDuration)
+    const captions = requestUseWhisperCaptions
+      ? await createWhisperVttFromScenes(scenes, defaultDuration)
+      : createVttFromScenes(scenes, defaultDuration)
     if (captions) {
       const subtitlePath = path.join(tempDir, `captions_${resultId}.vtt`)
       await fs.promises.writeFile(subtitlePath, captions)

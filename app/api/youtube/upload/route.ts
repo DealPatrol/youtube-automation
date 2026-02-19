@@ -37,6 +37,7 @@ async function uploadVideoToYouTube(
     categoryId: string
     privacyStatus: string
     madeForKids: boolean
+    publishAt?: string | null
   },
   accessToken: string
 ) {
@@ -77,6 +78,7 @@ async function uploadVideoToYouTube(
           status: {
             privacyStatus: metadata.privacyStatus || 'private',
             selfDeclaredMadeForKids: metadata.madeForKids || false,
+            publishAt: metadata.publishAt || undefined,
           },
         },
         media: {
@@ -251,6 +253,7 @@ export async function POST(request: NextRequest) {
     const resultId = searchParams.get('resultId')
     const accessToken = searchParams.get('accessToken')
     const action = searchParams.get('action') || 'upload'
+    const publishAt = searchParams.get('publishAt')
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Missing accessToken' }, { status: 400 })
@@ -305,8 +308,9 @@ export async function POST(request: NextRequest) {
         description: result.seo?.description || 'Generated with AI Video Creator',
         tags: result.seo?.tags || [],
         categoryId: result.seo?.categoryId || '22',
-        privacyStatus: result.seo?.privacyStatus || 'private',
+        privacyStatus: publishAt ? 'private' : result.seo?.privacyStatus || 'private',
         madeForKids: result.seo?.madeForKids || false,
+        publishAt,
       }
 
       const { error: startUploadError } = await supabase

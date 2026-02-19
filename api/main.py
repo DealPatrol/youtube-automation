@@ -24,6 +24,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "videos")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 BACKGROUND_MUSIC_URL = os.getenv("BACKGROUND_MUSIC_URL")
 BACKGROUND_MUSIC_PATH = os.getenv("BACKGROUND_MUSIC_PATH")
@@ -200,6 +201,77 @@ def _create_vtt(scenes: List[Dict[str, Any]], default_duration: int) -> Optional
         end = _format_timestamp(cursor + duration)
         cues.append(f"{start} --> {end}\n{text}".strip())
         cursor += duration
+    if not cues:
+        return None
+    return "WEBVTT\n\n" + "\n\n".join(cues) + "\n"
+
+
+def _create_whisper_vtt(scenes: List[Dict[str, Any]], default_duration: int, work_dir: str) -> Optional[str]:
+    if not OPENAI_API_KEY:
+        return None
+
+    cues: List[str] = []
+    cursor = 0.0
+
+    for scene in scenes:
+        duration = _resolve_duration(scene, default_duration)
+        audio_url = scene.get("audio_url")
+        if not audio_url:
+            cursor += duration
+            continue
+
+        audio_path = os.path.join(work_dir, f"audio_{scene.get('id')}.mp3")
+        _download_to_file(audio_url, audio_path)
+
+        with open(audio_path, "rb") as f:
+            files = {"file": ("audio.mp3", f, "audio/mpeg")}
+            data = {
+                "model": "whisper-1",
+                "response_format": "verbose_json",
+                "timestamp_granularities[]": "word",
+            }
+            headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+            response = requests.post("https://api.openai.com/v1/audio/transcriptions", files=files, data=data, headers=headers)
+        if response.status_code != 200:
+            cursor += duration
+            continue
+
+        payload = response.json()
+        words = payload.get("words") or []
+        buffer: List[str] = []
+        cue_start = None
+        cue_end = None
+
+        def flush():
+            nonlocal buffer, cue_start, cue_end
+            if not buffer or cue_start is None or cue_end is None:
+                return
+            start = _format_timestamp(cursor + cue_start)
+            end = _format_timestamp(cursor + cue_end)
+            cues.append(f"{start} --> {end}\n{' '.join(buffer)}")
+            buffer = []
+            cue_start = None
+            cue_end = None
+
+        for idx, word in enumerate(words):
+            text = str(word.get("word", "")).strip()
+            if not text:
+                continue
+            if cue_start is None:
+                cue_start = float(word.get("start", 0))
+            cue_end = float(word.get("end", 0))
+            buffer.append(text)
+
+            next_word = words[idx + 1] if idx + 1 < len(words) else None
+            gap = False
+            if next_word and isinstance(next_word.get("start"), (int, float)):
+                gap = float(next_word["start"]) - float(word.get("end", 0)) > 0.6
+            if len(buffer) >= 7 or gap or idx == len(words) - 1:
+                flush()
+
+        flush()
+        cursor += duration
+
     if not cues:
         return None
     return "WEBVTT\n\n" + "\n\n".join(cues) + "\n"
@@ -498,13 +570,15 @@ async def assemble_video(request: AssembleVideoRequest):
 
         options = request.options or {}
         music_url = options.get("backgroundMusicUrl") or BACKGROUND_MUSIC_URL
+        music_volume = options.get("backgroundMusicVolume", BACKGROUND_MUSIC_VOLUME)
         logo_url = options.get("brandingLogoUrl") or BRANDING_LOGO_URL
         logo_position = options.get("brandingLogoPosition") or BRANDING_LOGO_POSITION
+        use_whisper_captions = bool(options.get("useWhisperCaptions"))
 
         music_path = _resolve_optional_asset(music_url, BACKGROUND_MUSIC_PATH, temp_dir, "background_music", "mp3")
         if music_path:
             mixed_path = os.path.join(temp_dir, f"assembled_{request.resultId}_music.mp4")
-            _mix_background_music(final_output_path, music_path, mixed_path, BACKGROUND_MUSIC_VOLUME)
+            _mix_background_music(final_output_path, music_path, mixed_path, float(music_volume))
             final_output_path = mixed_path
 
         logo_path = _resolve_optional_asset(logo_url, BRANDING_LOGO_PATH, temp_dir, "branding_logo", "png")
@@ -522,7 +596,7 @@ async def assemble_video(request: AssembleVideoRequest):
             final_output_path = branded_path
 
         subtitle_url = None
-        vtt = _create_vtt(scenes, default_duration)
+        vtt = _create_whisper_vtt(scenes, default_duration, temp_dir) if use_whisper_captions else _create_vtt(scenes, default_duration)
         if vtt:
             vtt_path = os.path.join(temp_dir, f"captions_{request.resultId}.vtt")
             with open(vtt_path, "w", encoding="utf-8") as f:

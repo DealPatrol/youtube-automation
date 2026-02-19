@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { useAuth } from '@/lib/auth/auth-context'
@@ -59,6 +59,18 @@ export default function ResultsPage() {
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState('')
   const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('')
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null)
+  const [scheduleAt, setScheduleAt] = useState('')
+  const [useWhisperCaptions, setUseWhisperCaptions] = useState(false)
+
+  const musicLibrary = useMemo(() => {
+    try {
+      const raw = process.env.NEXT_PUBLIC_MUSIC_LIBRARY || '[]'
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }, [])
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -224,6 +236,7 @@ export default function ResultsPage() {
           resultId,
           options: {
             backgroundMusicUrl: backgroundMusicUrl || undefined,
+            useWhisperCaptions,
           },
         }),
       })
@@ -284,6 +297,10 @@ export default function ResultsPage() {
         description: result.seo.description || '',
         tags: result.seo.tags?.join(',') || '',
       })
+      if (scheduleAt) {
+        const publishAt = new Date(scheduleAt).toISOString()
+        params.set('publishAt', publishAt)
+      }
 
       // Fetch video file if available
       let videoFile: File | null = null
@@ -495,6 +512,24 @@ export default function ResultsPage() {
                   />
                 )}
               </div>
+              {musicLibrary.length > 0 && (
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
+                  <label className="text-muted-foreground">Music</label>
+                  <select
+                    className="bg-transparent focus:outline-none"
+                    value={backgroundMusicUrl}
+                    onChange={(event) => setBackgroundMusicUrl(event.target.value)}
+                    disabled={rendering}
+                  >
+                    <option value="">None</option>
+                    {musicLibrary.map((track: any) => (
+                      <option key={track.url || track.label} value={track.url || ''}>
+                        {track.label || track.url}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
                 <label className="text-muted-foreground">Music URL</label>
                 <input
@@ -504,6 +539,18 @@ export default function ResultsPage() {
                   onChange={(event) => setBackgroundMusicUrl(event.target.value)}
                   disabled={rendering}
                 />
+              </div>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
+                <label className="text-muted-foreground">Captions</label>
+                <select
+                  className="bg-transparent focus:outline-none"
+                  value={useWhisperCaptions ? 'whisper' : 'scenes'}
+                  onChange={(event) => setUseWhisperCaptions(event.target.value === 'whisper')}
+                  disabled={rendering}
+                >
+                  <option value="scenes">Scene timing</option>
+                  <option value="whisper">Whisper (word-level)</option>
+                </select>
               </div>
               <Button
                 variant="outline"
@@ -571,6 +618,16 @@ export default function ResultsPage() {
                 <Upload className="w-4 h-4 mr-2" />
                 {uploading ? 'Uploading...' : 'Upload to YouTube'}
               </Button>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
+                <label className="text-muted-foreground">Schedule</label>
+                <input
+                  type="datetime-local"
+                  className="bg-transparent focus:outline-none"
+                  value={scheduleAt}
+                  onChange={(event) => setScheduleAt(event.target.value)}
+                  disabled={uploading}
+                />
+              </div>
               {uploadedVideoId && (
                 <a href={`https://youtube.com/watch?v=${uploadedVideoId}`} target="_blank" rel="noopener noreferrer">
                   <Button size="sm" variant="outline">

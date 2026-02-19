@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
     const title = searchParams.get('title') || 'Untitled Video'
     const description = searchParams.get('description') || ''
     const tags = searchParams.get('tags')?.split(',') || []
+    const publishAt = searchParams.get('publishAt')
 
     if (!resultId) {
       return NextResponse.json(
@@ -148,8 +149,9 @@ export async function POST(request: NextRequest) {
             categoryId: '22', // People & Blogs
           },
           status: {
-            privacyStatus: 'unlisted',
+            privacyStatus: publishAt ? 'private' : 'unlisted',
             madeForKids: false,
+            publishAt: publishAt || undefined,
           },
         },
       },
