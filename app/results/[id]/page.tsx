@@ -57,6 +57,8 @@ export default function ResultsPage() {
   const [voiceProvider, setVoiceProvider] = useState<'openai' | 'elevenlabs'>('openai')
   const [voice, setVoice] = useState('alloy')
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState('')
+  const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('')
+  const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -116,22 +118,6 @@ export default function ResultsPage() {
     } catch (err) {
       console.error('[Results] Load error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load result')
-      setLoading(false)
-    }
-  }
-
-      if (dbError) {
-        setError('Result not found')
-        return
-      }
-
-      setResult({
-        id: data.id,
-        ...data,
-      } as ResultData)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load results')
-    } finally {
       setLoading(false)
     }
   }
@@ -234,7 +220,12 @@ export default function ResultsPage() {
       const assembleResponse = await fetch('/api/assemble-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resultId }),
+        body: JSON.stringify({
+          resultId,
+          options: {
+            backgroundMusicUrl: backgroundMusicUrl || undefined,
+          },
+        }),
       })
       
       if (!assembleResponse.ok) {
@@ -264,6 +255,7 @@ export default function ResultsPage() {
       }
       
       setVideoUrl(assembleData.videoUrl)
+      setSubtitleUrl(assembleData.subtitleUrl || null)
       
       // Reload result to get updated data
       await loadResult()
@@ -503,6 +495,16 @@ export default function ResultsPage() {
                   />
                 )}
               </div>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
+                <label className="text-muted-foreground">Music URL</label>
+                <input
+                  className="bg-transparent focus:outline-none"
+                  placeholder="https://..."
+                  value={backgroundMusicUrl}
+                  onChange={(event) => setBackgroundMusicUrl(event.target.value)}
+                  disabled={rendering}
+                />
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -574,6 +576,14 @@ export default function ResultsPage() {
                   <Button size="sm" variant="outline">
                     <ExternalLink className="w-4 h-4 mr-2" />
                     View on YouTube
+                  </Button>
+                </a>
+              )}
+              {subtitleUrl && (
+                <a href={subtitleUrl} target="_blank" rel="noopener noreferrer">
+                  <Button size="sm" variant="outline">
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Captions
                   </Button>
                 </a>
               )}

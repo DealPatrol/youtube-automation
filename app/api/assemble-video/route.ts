@@ -27,6 +27,12 @@ const fastApiUrl = process.env.FASTAPI_URL
 
 interface AssembleVideoRequest {
   resultId: string
+  options?: {
+    backgroundMusicUrl?: string
+    backgroundMusicVolume?: number
+    brandingLogoUrl?: string
+    brandingLogoPosition?: string
+  }
 }
 
 interface SceneAsset {
@@ -408,6 +414,15 @@ export async function POST(request: Request) {
       .update({ processing_status: 'assembling' })
       .eq('id', resultId)
 
+    const requestOptions = body.options || {}
+    const requestBackgroundMusicUrl = requestOptions.backgroundMusicUrl?.trim()
+    const requestBackgroundMusicVolume =
+      typeof requestOptions.backgroundMusicVolume === 'number'
+        ? requestOptions.backgroundMusicVolume
+        : undefined
+    const requestBrandingLogoUrl = requestOptions.brandingLogoUrl?.trim()
+    const requestBrandingLogoPosition = requestOptions.brandingLogoPosition?.trim()
+
     const assemblyEndpoint = resolveAssemblyEndpoint()
     if (assemblyEndpoint) {
       console.log('[API] Offloading assembly to:', assemblyEndpoint)
@@ -421,9 +436,10 @@ export async function POST(request: Request) {
           script: result.script,
           defaultDuration,
           options: {
-            backgroundMusicUrl,
-            brandingLogoUrl,
-            brandingLogoPosition,
+            backgroundMusicUrl: requestBackgroundMusicUrl || backgroundMusicUrl,
+            backgroundMusicVolume: requestBackgroundMusicVolume ?? backgroundMusicVolume,
+            brandingLogoUrl: requestBrandingLogoUrl || brandingLogoUrl,
+            brandingLogoPosition: requestBrandingLogoPosition || brandingLogoPosition,
           },
         }),
       })
@@ -490,7 +506,7 @@ export async function POST(request: Request) {
     let finalOutputPath = outputPath
 
     const musicAssetPath = await resolveOptionalAsset({
-      url: backgroundMusicUrl,
+      url: requestBackgroundMusicUrl || backgroundMusicUrl,
       localPath: backgroundMusicPath,
       workDir: tempDir,
       prefix: 'background_music',
@@ -503,13 +519,13 @@ export async function POST(request: Request) {
         inputPath: finalOutputPath,
         musicPath: musicAssetPath,
         outputPath: mixedPath,
-        volume: backgroundMusicVolume,
+        volume: requestBackgroundMusicVolume ?? backgroundMusicVolume,
       })
       finalOutputPath = mixedPath
     }
 
     const brandingAssetPath = await resolveOptionalAsset({
-      url: brandingLogoUrl,
+      url: requestBrandingLogoUrl || brandingLogoUrl,
       localPath: brandingLogoPath,
       workDir: tempDir,
       prefix: 'branding_logo',
@@ -524,7 +540,7 @@ export async function POST(request: Request) {
         outputPath: brandedPath,
         opacity: brandingLogoOpacity,
         scale: brandingLogoScale,
-        position: brandingLogoPosition,
+        position: requestBrandingLogoPosition || brandingLogoPosition,
         padding: brandingLogoPadding,
       })
       finalOutputPath = brandedPath

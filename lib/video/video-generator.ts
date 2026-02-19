@@ -11,6 +11,7 @@ export interface VideoScene {
   narration?: string
   start_time?: string
   end_time?: string
+  duration?: number
   image_url?: string
   video_url?: string
   audio_url?: string
@@ -126,7 +127,23 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
       console.log(`[v0] Scene ${scene.id} video generated: ${data.videoUrl}`)
     } catch (error) {
       console.error(`[v0] Error generating video for scene ${scene.id}:`, error)
-      
+
+      try {
+        const { getStockVideoUrl, getStockImageUrl } = await import('@/lib/video/stock-media')
+        const stockVideo = await getStockVideoUrl(scene.visual_description)
+        if (stockVideo) {
+          const stockImage = await getStockImageUrl(scene.visual_description)
+          updatedScenes.push({
+            ...scene,
+            video_url: stockVideo,
+            image_url: stockImage || stockVideo,
+          })
+          continue
+        }
+      } catch (stockError) {
+        console.warn('[v0] Stock video fallback failed:', stockError)
+      }
+
       // Fallback to image generation if video fails
       try {
         const imageResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/generate-image`, {
@@ -149,6 +166,21 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
         }
       } catch (fallbackError) {
         console.error(`[v0] Fallback image generation failed for scene ${scene.id}:`, fallbackError)
+
+        try {
+          const { getStockImageUrl } = await import('@/lib/video/stock-media')
+          const stockImage = await getStockImageUrl(scene.visual_description)
+          if (stockImage) {
+            updatedScenes.push({
+              ...scene,
+              image_url: stockImage,
+            })
+            continue
+          }
+        } catch (stockError) {
+          console.warn('[v0] Stock image fallback failed:', stockError)
+        }
+
         updatedScenes.push({
           ...scene,
           image_url: `/placeholder.svg`,
@@ -194,7 +226,21 @@ export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoSc
       console.log(`[v0] Scene ${scene.id} image generated: ${data.imageUrl}`)
     } catch (error) {
       console.error(`[v0] Error generating image for scene ${scene.id}:`, error)
-      
+
+      try {
+        const { getStockImageUrl } = await import('@/lib/video/stock-media')
+        const stockImage = await getStockImageUrl(scene.visual_description)
+        if (stockImage) {
+          updatedScenes.push({
+            ...scene,
+            image_url: stockImage,
+          })
+          continue
+        }
+      } catch (stockError) {
+        console.warn('[v0] Stock image fallback failed:', stockError)
+      }
+
       updatedScenes.push({
         ...scene,
         image_url: `/placeholder.svg`,
