@@ -20,7 +20,13 @@ if (supabaseUrl && supabaseKey) {
 export async function POST(request: Request) {
   let resultId: string | undefined
   try {
-    const { resultId: requestResultId, mode = 'images' } = await request.json()
+    const {
+      resultId: requestResultId,
+      mode = 'images',
+      voice,
+      voiceProvider,
+      voiceId,
+    } = await request.json()
     resultId = requestResultId
 
     if (!resultId) {
@@ -102,7 +108,11 @@ export async function POST(request: Request) {
 
     // Generate AI voiceover for all scenes
     console.log('[API] Generating AI voiceover for scenes...')
-    scenesWithContent = await generateSceneAudio(scenesWithContent)
+    scenesWithContent = await generateSceneAudio(scenesWithContent, {
+      provider: voiceProvider,
+      voice,
+      voiceId,
+    })
     console.log('[API] Voiceover generation complete')
 
     console.log('[API] Generation complete, updating database...')

@@ -54,6 +54,9 @@ export default function ResultsPage() {
   const [renderLoading, setRenderLoading] = useState(false)
   const [renderError, setRenderError] = useState('')
   const [job, setJob] = useState<any | null>(null)
+  const [voiceProvider, setVoiceProvider] = useState<'openai' | 'elevenlabs'>('openai')
+  const [voice, setVoice] = useState('alloy')
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState('')
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -210,7 +213,13 @@ export default function ResultsPage() {
       const renderResponse = await fetch('/api/render-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resultId, mode }),
+        body: JSON.stringify({
+          resultId,
+          mode,
+          voiceProvider,
+          voice,
+          voiceId: voiceProvider === 'elevenlabs' ? elevenLabsVoiceId : undefined,
+        }),
       })
       
       if (!renderResponse.ok) {
@@ -457,6 +466,43 @@ export default function ResultsPage() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h1 className="text-3xl font-bold">Your Generated Content</h1>
             <div className="flex gap-2 flex-wrap">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
+                <label className="text-muted-foreground">Voice</label>
+                <select
+                  className="bg-transparent focus:outline-none"
+                  value={voiceProvider}
+                  onChange={(event) =>
+                    setVoiceProvider(event.target.value as 'openai' | 'elevenlabs')
+                  }
+                  disabled={rendering}
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="elevenlabs">ElevenLabs</option>
+                </select>
+                {voiceProvider === 'openai' ? (
+                  <select
+                    className="bg-transparent focus:outline-none"
+                    value={voice}
+                    onChange={(event) => setVoice(event.target.value)}
+                    disabled={rendering}
+                  >
+                    <option value="alloy">Alloy</option>
+                    <option value="nova">Nova</option>
+                    <option value="shimmer">Shimmer</option>
+                    <option value="onyx">Onyx</option>
+                    <option value="fable">Fable</option>
+                    <option value="echo">Echo</option>
+                  </select>
+                ) : (
+                  <input
+                    className="bg-transparent focus:outline-none"
+                    placeholder="ElevenLabs voice ID"
+                    value={elevenLabsVoiceId}
+                    onChange={(event) => setElevenLabsVoiceId(event.target.value)}
+                    disabled={rendering}
+                  />
+                )}
+              </div>
               <Button
                 variant="outline"
                 size="sm"

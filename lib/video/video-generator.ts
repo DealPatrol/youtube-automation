@@ -23,11 +23,23 @@ export interface VideoGenerationOptions {
   duration?: number
 }
 
+export type VoiceProvider = 'openai' | 'elevenlabs'
+
+export interface VoiceOptions {
+  provider?: VoiceProvider
+  voice?: string
+  voiceId?: string
+}
+
 /**
  * Generate audio voiceover for scenes using OpenAI TTS
  */
-export async function generateSceneAudio(scenes: VideoScene[]): Promise<VideoScene[]> {
+export async function generateSceneAudio(
+  scenes: VideoScene[],
+  options: VoiceOptions = {}
+): Promise<VideoScene[]> {
   const updatedScenes = []
+  const { provider, voice = 'alloy', voiceId } = options
 
   for (const scene of scenes) {
     try {
@@ -47,7 +59,9 @@ export async function generateSceneAudio(scenes: VideoScene[]): Promise<VideoSce
         body: JSON.stringify({
           narration: scene.narration,
           sceneId: scene.id,
-          voice: 'alloy', // Professional voice
+          voice,
+          voiceProvider: provider,
+          voiceId,
         }),
       })
 
