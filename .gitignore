@@ -34,5 +34,5 @@ vscode.git.Git
 # macOS
 .DS_Store
 
-# Development artifacts
-youtube-automation-main
+# Development artifacts (HTML directory listings and similar files)
+youtube-automation-main*
