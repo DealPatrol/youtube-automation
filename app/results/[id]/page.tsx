@@ -117,22 +117,6 @@ export default function ResultsPage() {
     }
   }
 
-      if (dbError) {
-        setError('Result not found')
-        return
-      }
-
-      setResult({
-        id: data.id,
-        ...data,
-      } as ResultData)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load results')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function copyToClipboard(text: string) {
     try {
       await navigator.clipboard.writeText(JSON.stringify(text, null, 2))
