@@ -105,11 +105,46 @@ Return a JSON array only.
       );
     }
 
+    // Generate result ID
+    const resultId = `result-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Format script for UI
+    const formattedScript = {
+      title: topic || 'Untitled Video',
+      duration: Math.ceil(scenes.reduce((sum, s) => sum + s.length, 0) / 60),
+      content: script,
+      sections: scenes.map((scene, idx) => ({
+        time: `${Math.floor(scene.start / 60)}:${String(scene.start % 60).padStart(2, '0')}`,
+        speaker: 'Narrator',
+        text: scene.text,
+      })),
+    };
+
+    // Format scenes for UI
+    const formattedScenes = scenes.map((scene, idx) => ({
+      id: scene.id,
+      sceneNumber: idx + 1,
+      overlayText: scene.text,
+      keywords: scene.keywords,
+      duration: scene.length,
+      clipUrl: scene.clipUrl,
+      startTime: scene.start,
+    }));
+
     return NextResponse.json({
-      script,
-      scenes,
+      resultId,
+      script: formattedScript,
+      scenes: formattedScenes,
       portraitRenderId: portraitRender.response.id,
       landscapeRenderId: landscapeRender.response.id,
+      processing_status: 'completed',
+      capcut_steps: [],
+      seo: {
+        title: topic,
+        description: script.substring(0, 150),
+        keywords: aiScenes.flatMap(s => s.keywords).slice(0, 10),
+      },
+      thumbnail: null,
     });
   } catch (error) {
     console.error('[API] Video render error:', error);
