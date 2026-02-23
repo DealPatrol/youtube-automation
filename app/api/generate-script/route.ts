@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { openai } from '@/lib/openaiClient';
+import { openai, validateOpenAIKey } from '@/lib/openaiClient';
 
 export async function POST(req: NextRequest) {
   try {
+    validateOpenAIKey();
     const { topic, style = 'educational', length = 'short' } = await req.json();
 
     const prompt = `

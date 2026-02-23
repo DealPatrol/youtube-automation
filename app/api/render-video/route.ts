@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { shotstackRequest } from '@/lib/shotstackClient';
 import { buildScenesFromAI } from '@/lib/buildScenes';
 import { buildDualTimelines } from '@/lib/buildTimeline';
-import { openai } from '@/lib/openaiClient';
+import { openai, validateOpenAIKey } from '@/lib/openaiClient';
 import { searchPexelsVideo } from '@/lib/pexelsClient';
 import { generateVoiceover } from '@/lib/elevenLabsClient';
 
 export async function POST(req: NextRequest) {
   try {
+    // Validate required API keys at request time, not module load
+    validateOpenAIKey();
+
     const { topic, style = 'educational', length = 'short' } = await req.json();
 
     console.log('[API] Starting video render for topic:', topic);
