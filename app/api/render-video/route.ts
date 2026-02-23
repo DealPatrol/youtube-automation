@@ -1,152 +1,121 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { generateSceneVideos, generateSceneImages, generateSceneAudio } from '@/lib/video/video-generator'
+import { NextRequest, NextResponse } from 'next/server';
+import { shotstackRequest } from '@/lib/shotstackClient';
+import { buildScenesFromAI } from '@/lib/buildScenes';
+import { buildDualTimelines } from '@/lib/buildTimeline';
+import { openai } from '@/lib/openaiClient';
+import { searchPexelsVideo } from '@/lib/pexelsClient';
+import { generateVoiceover } from '@/lib/elevenLabsClient';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
+export async function POST(req: NextRequest) {
   try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
+    const { topic, style = 'educational', length = 'short' } = await req.json();
 
-export async function POST(request: Request) {
-  try {
-    const { resultId, mode = 'images' } = await request.json()
+    console.log('[API] Starting video render for topic:', topic);
 
-    if (!resultId) {
+    // 1) Generate script
+    const scriptPrompt = `
+You are a scriptwriter for short-form vertical videos.
+Write a ${length} script about: "${topic}".
+Tone: ${style}.
+Return only the script text.
+`;
+    const scriptCompletion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: scriptPrompt }],
+    });
+    const script = scriptCompletion.choices[0]?.message?.content?.trim() || '';
+    console.log('[API] Generated script');
+
+    // 2) Extract scenes
+    const scenePrompt = `
+You are preparing a script for a short-form video with on-screen text overlays.
+
+Given this script:
+
+"""${script}"""
+
+1. Break it into 6–12 scenes.
+2. For each scene, return:
+   - "overlay_text": a short, punchy phrase (max 12 words).
+   - "keywords": 2–4 keywords for stock video search.
+   - "length": approximate duration in seconds (3–7).
+
+Return a JSON array only.
+`;
+    const sceneCompletion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: scenePrompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    let aiScenes: { overlay_text: string; keywords: string[]; length: number }[] = [];
+    try {
+      const raw = sceneCompletion.choices[0]?.message?.content || '{}';
+      const parsed = JSON.parse(raw);
+      aiScenes = Array.isArray(parsed) ? parsed : parsed.scenes || [];
+    } catch (e) {
+      console.error('[API] Failed to parse AI scenes', e);
+    }
+    console.log('[API] Extracted', aiScenes.length, 'scenes');
+
+    // 3) Fetch clips from Pexels
+    const scenesWithClips = [];
+    for (const s of aiScenes) {
+      const query = s.keywords.join(' ');
+      const clipUrl = await searchPexelsVideo(query);
+      scenesWithClips.push({ ...s, clipUrl });
+    }
+    console.log('[API] Found clips for scenes');
+
+    // 4) Generate voiceover
+    let audioUrl: string | null = null;
+    try {
+      const audioBuffer = await generateVoiceover(script);
+      const base64 = audioBuffer.toString('base64');
+      audioUrl = `data:audio/mpeg;base64,${base64}`;
+      console.log('[API] Generated voiceover');
+    } catch (e) {
+      console.warn('[API] Voiceover generation failed, continuing without audio:', e);
+    }
+
+    // 5) Build scenes
+    const scenes = buildScenesFromAI(scenesWithClips);
+
+    // 6) Build dual timelines
+    const { portrait, landscape } = buildDualTimelines(scenes, audioUrl);
+
+    // 7) Send to Shotstack
+    let portraitRender, landscapeRender;
+    try {
+      portraitRender = await shotstackRequest<{ response: { id: string } }>('/render', {
+        method: 'POST',
+        body: JSON.stringify(portrait),
+      });
+
+      landscapeRender = await shotstackRequest<{ response: { id: string } }>('/render', {
+        method: 'POST',
+        body: JSON.stringify(landscape),
+      });
+      console.log('[API] Sent to Shotstack for rendering');
+    } catch (e) {
+      console.warn('[API] Shotstack rendering failed:', e);
       return NextResponse.json(
-        { error: 'Missing resultId' },
-        { status: 400 }
-      )
+        { error: 'Video rendering not configured. Please add Shotstack API key.' },
+        { status: 500 }
+      );
     }
-
-    console.log('[API] Rendering video for result:', resultId, 'Mode:', mode)
-
-    let result: any = null
-
-    // Try to fetch from Supabase if available
-    if (supabase) {
-      try {
-        const { data, error: dbError } = await supabase
-          .from('results')
-          .select('*, projects(user_id)')
-          .eq('id', resultId)
-          .single()
-
-        if (!dbError && data) {
-          result = data
-        }
-      } catch (supabaseErr) {
-        console.warn('[API] Supabase fetch failed, checking demo mode')
-      }
-    }
-
-    // Fallback to demo mode (stored globally)
-    if (!result && typeof globalThis !== 'undefined' && globalThis.demoResults) {
-      result = globalThis.demoResults[resultId]
-      console.log('[API] Using demo mode result')
-    }
-
-    if (!result) {
-      console.error('[API] Result not found:', resultId)
-      return NextResponse.json(
-        { error: 'Result not found. Please generate a video first.' },
-        { status: 404 }
-      )
-    }
-
-    console.log('[API] Result found, scenes:', result.scenes?.length || 0)
-
-    const scenes = result.scenes || []
-
-    if (scenes.length === 0) {
-      console.error('[API] No scenes available')
-      return NextResponse.json(
-        { error: 'No scenes available for video generation' },
-        { status: 400 }
-      )
-    }
-
-    const clipDuration = project?.clip_duration_seconds || 5
-
-    // Update status to rendering
-    await supabase
-      .from('results')
-      .update({ processing_status: 'rendering' })
-      .eq('id', resultId)
-
-    let scenesWithContent
-    let successMessage
-
-    if (mode === 'videos') {
-      console.log(`[API] Generating ${clipDuration}s AI video clips for scenes (Kling Video)...`)
-      scenesWithContent = await generateSceneVideos(scenes, clipDuration)
-      successMessage = `AI video clips (${clipDuration}s each) generated successfully`
-    } else {
-      console.log('[API] Generating static images for scenes (faster)...')
-      scenesWithContent = await generateSceneImages(scenes)
-      successMessage = 'Scene images generated successfully'
-    }
-
-    // Generate AI voiceover for all scenes
-    console.log('[API] Generating AI voiceover for scenes...')
-    scenesWithContent = await generateSceneAudio(scenesWithContent)
-    console.log('[API] Voiceover generation complete')
-
-    console.log('[API] Generation complete, updating database...')
-
-    // Update result with scene content
-    const { error: updateError } = await supabase
-      .from('results')
-      .update({
-        scenes: scenesWithContent,
-        processing_status: 'completed',
-      })
-      .eq('id', resultId)
-
-    if (updateError) {
-      console.error('[API] Failed to update scenes:', updateError)
-      throw updateError
-    }
-
-    console.log('[API] Video generation complete')
 
     return NextResponse.json({
-      success: true,
-      message: successMessage,
-      resultId,
-      sceneCount: scenesWithContent.length,
-      mode,
-      status: 'completed',
-    })
+      script,
+      scenes,
+      portraitRenderId: portraitRender.response.id,
+      landscapeRenderId: landscapeRender.response.id,
+    });
   } catch (error) {
-    console.error('[API] Video render error:', error)
-
-    // Update status to error
-    try {
-      const resultId = (await request.json()).resultId; // Declare resultId here
-      await supabase
-        .from('results')
-        .update({
-          processing_status: 'error',
-          error_message: error instanceof Error ? error.message : 'Unknown error',
-        })
-        .eq('id', resultId)
-    } catch (updateError) {
-      console.error('[API] Failed to update error status:', updateError)
-    }
-
+    console.error('[API] Video render error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to render video' },
       { status: 500 }
-    )
+    );
   }
 }
