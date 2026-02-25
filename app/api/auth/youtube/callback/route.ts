@@ -25,6 +25,21 @@ export async function GET(request: Request) {
       )
     }
 
+    const { searchParams } = new URL(request.url)
+    const error = searchParams.get('error')
+    const code = searchParams.get('code')
+    const state = searchParams.get('state')
+    const resultId = state || 'unknown'
+    const clientId = process.env.YOUTUBE_CLIENT_ID
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
+
+    if (!clientId || !clientSecret) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing YouTube OAuth credentials' },
+        { status: 500 }
+      )
+    }
+
     if (error) {
       const redirectUrl = resultId && resultId !== 'unknown' 
         ? `/results/${resultId}?youtube_error=${encodeURIComponent(error)}`
