@@ -25,3 +25,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE and workspace files
+*.code-workspace
+*.code-workspace.bak
+vscode.git.Git
+
+# macOS
+.DS_Store
+
+# Development artifacts (HTML directory listings and similar files)
+youtube-automation-main*
