@@ -9,11 +9,20 @@ import { generateVoiceover } from '@/lib/elevenLabsClient';
 export async function POST(req: NextRequest) {
   try {
     // Validate required API keys at request time, not module load
-    validateOpenAIKey();
+    try {
+      validateOpenAIKey();
+    } catch (e) {
+      console.error('[API] OpenAI key validation failed:', e);
+      return NextResponse.json(
+        { error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to environment variables.' },
+        { status: 500 }
+      );
+    }
 
     const { topic, style = 'educational', length = 'short' } = await req.json();
 
     console.log('[API] Starting video render for topic:', topic);
+    console.log('[API] OpenAI client exists:', !!openai);
 
     // 1) Generate script
     const scriptPrompt = `
@@ -22,12 +31,21 @@ Write a ${length} script about: "${topic}".
 Tone: ${style}.
 Return only the script text.
 `;
+    console.log('[API] Calling OpenAI for script generation...');
     const scriptCompletion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: scriptPrompt }],
     });
     const script = scriptCompletion.choices[0]?.message?.content?.trim() || '';
-    console.log('[API] Generated script');
+    console.log('[API] Generated script:', script.substring(0, 100));
+
+    if (!script) {
+      console.error('[API] Script generation returned empty string');
+      return NextResponse.json(
+        { error: 'Failed to generate script - empty response from OpenAI' },
+        { status: 500 }
+      );
+    }
 
     // 2) Extract scenes
     const scenePrompt = `
@@ -151,8 +169,14 @@ Return a JSON array only.
     });
   } catch (error) {
     console.error('[API] Video render error:', error);
+    console.error('[API] Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('[API] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[API] Full error:', JSON.stringify(error, null, 2));
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to render video' },
+      { 
+        error: error instanceof Error ? error.message : 'Failed to render video',
+        details: error instanceof Error ? error.toString() : String(error),
+      },
       { status: 500 }
     );
   }
