@@ -251,7 +251,11 @@ export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const resultId = searchParams.get('resultId')
-    const accessToken = searchParams.get('accessToken')
+    // Accept the access token from either the Authorization header (server-to-server calls)
+    // or the legacy query parameter (browser-initiated uploads).
+    const accessToken =
+      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+      searchParams.get('accessToken')
     const action = searchParams.get('action') || 'upload'
     const publishAt = searchParams.get('publishAt')
 
