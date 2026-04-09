@@ -18,6 +18,22 @@ if (supabaseUrl && supabaseKey) {
 
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const code = searchParams.get('code')
+    const error = searchParams.get('error')
+    const state = searchParams.get('state')
+    const resultId = state || null
+    const clientId = process.env.YOUTUBE_CLIENT_ID
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
+
+    if (!clientId || !clientSecret) {
+      console.error('[OAuth] Missing YOUTUBE_CLIENT_ID or YOUTUBE_CLIENT_SECRET')
+      const redirectUrl = resultId
+        ? `/results/${resultId}?youtube_error=Server+configuration+error`
+        : '/?youtube_error=Server+configuration+error'
+      return NextResponse.redirect(new URL(redirectUrl, request.url))
+    }
+
     if (!supabase) {
       return NextResponse.json(
         { error: 'Supabase not configured' },
@@ -26,14 +42,14 @@ export async function GET(request: Request) {
     }
 
     if (error) {
-      const redirectUrl = resultId && resultId !== 'unknown' 
+      const redirectUrl = resultId
         ? `/results/${resultId}?youtube_error=${encodeURIComponent(error)}`
         : `/?youtube_error=${encodeURIComponent(error)}`
       return NextResponse.redirect(new URL(redirectUrl, request.url))
     }
 
     if (!code) {
-      const redirectUrl = resultId && resultId !== 'unknown'
+      const redirectUrl = resultId
         ? `/results/${resultId}?youtube_error=No authorization code received`
         : '/?youtube_error=No authorization code received'
       return NextResponse.redirect(new URL(redirectUrl, request.url))
@@ -64,7 +80,7 @@ export async function GET(request: Request) {
     console.log('[OAuth] Token exchange successful')
 
     // Store refresh token in Supabase if we have a resultId
-    if (resultId && resultId !== 'unknown') {
+    if (resultId) {
       const { error: updateError } = await supabase
         .from('results')
         .update({
@@ -88,16 +104,16 @@ export async function GET(request: Request) {
       console.log('[OAuth] No resultId provided, redirecting to dashboard')
       return NextResponse.redirect(new URL('/?youtube_connected=true', request.url))
     }
-  } catch (error) {
-    console.error('[YouTube OAuth] Error:', error)
-    const state = new URL(request.url).searchParams.get('state')
-    const resultId = state || null
-    const errorMessage = error instanceof Error ? error.message : 'OAuth failed'
-    
-    const redirectUrl = resultId
-      ? `/results/${resultId}?youtube_error=${encodeURIComponent(errorMessage)}`
+  } catch (err) {
+    console.error('[YouTube OAuth] Error:', err)
+    const errorState = new URL(request.url).searchParams.get('state')
+    const errorResultId = errorState || null
+    const errorMessage = err instanceof Error ? err.message : 'OAuth failed'
+
+    const redirectUrl = errorResultId
+      ? `/results/${errorResultId}?youtube_error=${encodeURIComponent(errorMessage)}`
       : `/?youtube_error=${encodeURIComponent(errorMessage)}`
-    
+
     return NextResponse.redirect(new URL(redirectUrl, request.url))
   }
 }

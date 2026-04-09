@@ -9,8 +9,14 @@ Add these to your v0 Vars section (click "Vars" in the left sidebar):
 **Supabase:**
 \`\`\`
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 SUPABASE_STORAGE_BUCKET=videos
+\`\`\`
+
+**fal.ai (for AI image generation per scene):**
+\`\`\`
+FAL_KEY=your_fal_ai_api_key
 \`\`\`
 
 **YouTube Integration:**
@@ -30,7 +36,10 @@ OPENAI_API_KEY=your_openai_api_key
 
 **Stripe (for payments):**
 \`\`\`
-STRIPE_PRICE_ID_PRO=your_stripe_price_id
+STRIPE_PRICE_ID_PRO=your_stripe_pro_price_id
+STRIPE_PRICE_ID_ENTERPRISE=your_stripe_enterprise_price_id
+# Get this from the Stripe Dashboard → Webhooks after adding the endpoint
+STRIPE_WEBHOOK_SECRET=whsec_...
 \`\`\`
 
 **Cron Jobs (for scheduled uploads):**
@@ -71,6 +80,7 @@ Notes:
 - Create/select your project
 - Go to Settings → API
 - Copy `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
+- Copy `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Copy `Service Role Key` → `SUPABASE_SERVICE_ROLE_KEY`
 
 ### 2. YouTube OAuth Credentials
@@ -92,10 +102,19 @@ Notes:
 
 ### 4. Stripe (Optional)
 - Go to [stripe.com](https://stripe.com)
-- Create product and price
-- Copy price ID → `STRIPE_PRICE_ID_PRO`
+- Create products and prices for Pro and Enterprise tiers
+- Copy price IDs → `STRIPE_PRICE_ID_PRO` / `STRIPE_PRICE_ID_ENTERPRISE`
+- In the Stripe Dashboard → Developers → Webhooks, add your endpoint:
+  `https://your-domain.com/api/billing/webhook`
+  with events: `checkout.session.completed`, `customer.subscription.*`, `invoice.payment_*`
+- Copy the signing secret → `STRIPE_WEBHOOK_SECRET`
 
-### 5. Unsplash (Optional - for stock images)
+### 5. fal.ai (Required for image generation)
+- Go to [fal.ai](https://fal.ai) and sign up
+- Generate an API key in your account dashboard
+- Copy → `FAL_KEY`
+
+### 6. Unsplash (Optional - for stock images)
 - Go to [unsplash.com/developers](https://unsplash.com/developers)
 - Create application
 - Copy Access Key → `UNSPLASH_ACCESS_KEY`
@@ -107,7 +126,8 @@ If running locally, create a `.env.local` file in the root directory:
 \`\`\`bash
 # Core
 NEXT_PUBLIC_SUPABASE_URL=your_url
-SUPABASE_SERVICE_ROLE_KEY=your_key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 NEXTAUTH_URL=http://localhost:3000
 
 # YouTube
@@ -117,9 +137,17 @@ YOUTUBE_CLIENT_SECRET=your_secret
 # OpenAI
 OPENAI_API_KEY=your_key
 
+# fal.ai (image generation)
+FAL_KEY=your_fal_key
+
 # Optional - FastAPI Backend
 FASTAPI_URL=http://localhost:8000
 NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# Optional - Stripe
+STRIPE_PRICE_ID_PRO=price_...
+STRIPE_PRICE_ID_ENTERPRISE=price_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 
 # Optional - Cron Secret
 CRON_SECRET=your_secure_random_string

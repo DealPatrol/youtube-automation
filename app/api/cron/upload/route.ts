@@ -62,16 +62,16 @@ export async function GET(request: Request) {
         const tags = seo.tags || []
 
         // Upload to YouTube (call our YouTube upload API)
-        const uploadResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/youtube-upload`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title,
-            description,
-            tags,
-            accessToken: process.env.YOUTUBE_ACCESS_TOKEN, // Service account token
-          }),
-        })
+        const uploadResponse = await fetch(
+          `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/youtube/upload?resultId=${result.id}&action=upload`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${process.env.YOUTUBE_ACCESS_TOKEN || ''}`,
+            },
+          }
+        )
 
         if (!uploadResponse.ok) {
           const errorData = await uploadResponse.json()
