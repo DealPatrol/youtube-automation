@@ -1,269 +1,106 @@
-# Production Architecture Setup Guide
+# Deployment guide
 
-## Overview
-This is a distributed video generation SaaS with the following components:
-- **Frontend**: Next.js + TypeScript (Vercel/v0)
-- **Backend API**: FastAPI + PostgreSQL + Redis
-- **Video Workers**: Python + MoviePy + FFmpeg
-- **Storage**: S3/R2 + Cloudflare CDN
-- **AI Services**: OpenAI (TTS, Images), ElevenLabs (Professional TTS)
+This repo currently has three deployable surfaces:
+- `Next.js` app, including most user-facing APIs
+- `FastAPI` service in `api/` for assembly and storage-heavy work
+- `Python` workers in `workers/` for rendering and upload jobs
 
-## Local Development Setup
+## Reality check
 
-### Prerequisites
-- Docker & Docker Compose
-- Python 3.11+
-- Node.js 18+
-- Git
+The repository is not a single-click production deployment yet. In particular:
+- the Next.js app can run on its own, but some video assembly features expect ffmpeg or a reachable `FASTAPI_URL` / `VIDEO_ASSEMBLY_URL`
+- the Docker compose stack is for local or single-host use, not hardened multi-tenant production
+- `render.yaml` is incomplete and should not be treated as a full deployment manifest
 
-### 1. Clone and Setup
+## Recommended baseline
 
-\`\`\`bash
-# Clone the repository
-git clone <repo-url>
-cd saas-video-engine
+### Frontend / app routes
+Deploy the Next.js app separately using Node 20+.
 
-# Copy environment template
-cp .env.example .env
+```bash
+npm ci
+npm run lint
+npm test
+npm run build
+npm run start
+```
 
-# Edit .env with your API keys
-nano .env
-\`\`\`
+Set the environment variables documented in `ENV_SETUP.md`.
 
-### 2. Start Services with Docker Compose
+### Backend services
+For local integration testing:
 
-\`\`\`bash
-# Build and start all services
-docker-compose up -d
+```bash
+docker compose up --build postgres redis api video-worker
+```
 
-# View logs
-docker-compose logs -f api
-docker-compose logs -f video-worker
+This brings up:
+- Postgres on `5432`
+- Redis on `6379`
+- FastAPI on `8000`
 
-# Stop services
-docker-compose down
-\`\`\`
+## Production shape
 
-Services will be available at:
-- **API**: http://localhost:8000
-- **Database**: PostgreSQL on localhost:5432
-- **Redis**: localhost:6379
+A more realistic production setup is:
+1. Next.js app on Vercel, Render, Fly.io, or a Node host
+2. Managed Postgres
+3. Managed Redis
+4. Dedicated Python worker service with ffmpeg installed
+5. Supabase storage bucket for rendered assets
 
-### 3. Test the API
+### Environment mapping
 
-\`\`\`bash
-# Health check
+At minimum, production should provide:
+- app core: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `NEXTAUTH_URL`
+- media routes: `FAL_KEY`, plus either `FASTAPI_URL` or `VIDEO_ASSEMBLY_URL`
+- YouTube: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`
+- workers/api: `DATABASE_URL`, `REDIS_URL`
+
+## Deployment steps
+
+### Next.js app
+```bash
+npm ci
+npm run build
+```
+
+Health check:
+```bash
+curl https://your-app.example.com/api/status
+```
+
+### FastAPI service
+```bash
+cd api
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Health check:
+```bash
 curl http://localhost:8000/health
+```
 
-# View API docs
-open http://localhost:8000/docs
-\`\`\`
+### Worker service
+```bash
+cd workers
+pip install -r requirements.txt
+python video_renderer.py
+```
 
-## Production Deployment
+## Known gaps and risks
 
-### Option 1: AWS EC2 + RDS + ElastiCache
+- No complete CI pipeline is defined in the repo yet.
+- No production-ready secrets management or rotation guidance is checked in.
+- Worker orchestration is still fairly ad hoc.
+- `tts-worker` is referenced in `docker-compose.yml`, but the corresponding script should be validated before relying on it in production.
+- `render.yaml` should be replaced with a real multi-service manifest before using Render seriously.
 
-\`\`\`bash
-# 1. Launch EC2 instance (Ubuntu 22.04 LTS)
-# 2. Install Docker and Docker Compose
-# 3. Clone repository
-# 4. Configure RDS endpoint in .env
-# 5. Configure ElastiCache endpoint in .env
-# 6. Deploy with docker-compose
-docker-compose up -d
-\`\`\`
+## Pre-release checklist
 
-### Option 2: Railway / Render / Fly.io
-
-**Railway:**
-\`\`\`bash
-# Install Railway CLI
-npm i -g @railway/cli
-
-# Login
-railway login
-
-# Deploy
-railway link
-railway up
-\`\`\`
-
-### Option 3: Kubernetes
-
-\`\`\`bash
-# Build images
-docker build -t saas-video-api ./api
-docker build -t saas-video-worker ./workers
-
-# Deploy to cluster
-kubectl apply -f k8s/
-\`\`\`
-
-## Architecture Details
-
-### 1. Frontend → API Flow
-
-\`\`\`
-Next.js App
-    ↓
-POST /api/generate
-    ↓
-FastAPI Backend
-    ├─ Store in PostgreSQL
-    ├─ Enqueue job to Redis
-    └─ Return resultId
-    ↓
-Return to UI
-\`\`\`
-
-### 2. Video Processing Pipeline
-
-\`\`\`
-Redis Queue
-    ↓
-Video Worker (pulls job)
-    ├─ Fetch images (Unsplash API)
-    ├─ Generate voiceover (ElevenLabs/OpenAI)
-    ├─ Generate subtitles (Whisper)
-    ├─ Compose video (MoviePy)
-    └─ Encode to MP4 (FFmpeg)
-    ↓
-Upload to S3/R2
-    ↓
-Invalidate CDN cache
-    ↓
-Store video_url in DB
-\`\`\`
-
-### 3. Scaling Strategy
-
-**Horizontal Scaling:**
-- Add more video-worker containers to process jobs faster
-- Use AWS SQS instead of Redis for distributed queues
-- Scale PostgreSQL with read replicas
-
-**Vertical Scaling:**
-- Use GPU instances (AWS G4) for faster video encoding
-- Increase worker memory for processing large videos
-
-## Monitoring & Logging
-
-### Local Development
-\`\`\`bash
-# View API logs
-docker-compose logs -f api
-
-# View Worker logs  
-docker-compose logs -f video-worker
-
-# Monitor Redis
-redis-cli MONITOR
-
-# Monitor Database
-psql -U postgres -d video_db -c "\dt"
-\`\`\`
-
-### Production (AWS CloudWatch)
-\`\`\`bash
-# Enable CloudWatch logging in docker-compose
-# Log group: /saas/api and /saas/workers
-# Use CloudWatch Dashboard to monitor:
-# - Queue size
-# - Job completion rate
-# - Video render time
-# - Error rate
-\`\`\`
-
-## API Endpoints
-
-### Generate Video
-\`\`\`bash
-POST /api/videos/generate
-Content-Type: application/json
-
-{
-  "topic": "AI in 2024",
-  "description": "A deep dive into AI",
-  "video_length_minutes": 10,
-  "tone": "professional",
-  "platform": "youtube"
-}
-
-Response:
-{
-  "job_id": "uuid",
-  "result_id": "uuid",
-  "status": "pending"
-}
-\`\`\`
-
-### Check Status
-\`\`\`bash
-GET /api/videos/{result_id}/status
-
-Response:
-{
-  "status": "processing",
-  "progress": 45,
-  "current_step": "encoding_video",
-  "video_url": "/videos/video_xxx.mp4"
-}
-\`\`\`
-
-### Get Result
-\`\`\`bash
-GET /api/videos/{result_id}
-
-Response:
-{
-  "id": "uuid",
-  "video_url": "https://cdn.example.com/videos/video_xxx.mp4",
-  "video_status": "completed",
-  "script": {...},
-  "scenes": [...]
-}
-\`\`\`
-
-## Troubleshooting
-
-### Worker not processing jobs
-\`\`\`bash
-# Check Redis connection
-redis-cli ping
-
-# Check queue size
-redis-cli LLEN video:queue
-
-# View worker logs
-docker-compose logs video-worker
-\`\`\`
-
-### Video encoding fails
-\`\`\`bash
-# Check FFmpeg installation
-ffmpeg -version
-
-# Check available disk space
-df -h /app/storage
-
-# Increase timeout in docker-compose
-# environment: 
-#   - RENDER_TIMEOUT=600
-\`\`\`
-
-### Database connection errors
-\`\`\`bash
-# Test PostgreSQL connection
-psql postgresql://user:pass@localhost:5432/video_db
-
-# Check PostgreSQL logs
-docker-compose logs postgres
-\`\`\`
-
-## Next Steps
-
-1. **Connect Frontend**: Update Next.js to call FastAPI endpoints
-2. **S3 Integration**: Upload rendered videos to S3
-3. **CDN Setup**: Configure Cloudflare/CloudFront for video delivery
-4. **Monitoring**: Set up Sentry for error tracking
-5. **Analytics**: Track job metrics and performance
+- `npm run lint`
+- `npm test`
+- `npm run build`
+- validate `/api/status`
+- validate YouTube OAuth callback with the production `NEXTAUTH_URL`
+- validate one end-to-end render path against the deployed FastAPI service

@@ -6,6 +6,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 
+import { resolveDuration } from '@/lib/video/timing'
+
 export const runtime = 'nodejs'
 
 const execFileAsync = promisify(execFile)
@@ -47,27 +49,6 @@ interface SceneAsset {
   audio_url?: string
   on_screen_text?: string
   narration?: string
-}
-
-function parseTimestamp(value?: string): number | null {
-  if (!value) return null
-  const parts = value.split(':').map((part) => Number(part))
-  if (parts.some((part) => Number.isNaN(part))) return null
-  if (parts.length === 2) return parts[0] * 60 + parts[1]
-  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
-  return null
-}
-
-function resolveDuration(scene: SceneAsset, fallback: number): number {
-  if (typeof scene.duration === 'number' && scene.duration > 0) {
-    return Math.max(1, Math.round(scene.duration))
-  }
-  const start = parseTimestamp(scene.start_time)
-  const end = parseTimestamp(scene.end_time)
-  if (start !== null && end !== null && end > start) {
-    return Math.max(1, Math.round(end - start))
-  }
-  return Math.max(1, Math.round(fallback))
 }
 
 function escapeDrawtext(text: string): string {

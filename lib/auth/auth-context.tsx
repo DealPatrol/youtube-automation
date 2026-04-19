@@ -1,8 +1,8 @@
 'use client'
 
+import { createClient, type User } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-// Fallback user type for when Firebase isn't available
 interface DemoUser {
   uid: string
   email: string | null
@@ -10,7 +10,7 @@ interface DemoUser {
 }
 
 interface AuthContextType {
-  user: any | null
+  user: User | DemoUser | null
   loading: boolean
 }
 
@@ -19,89 +19,88 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
 })
 
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+  return url && anonKey ? createClient(url, anonKey) : null
+}
+
+function readDemoUser() {
+  try {
+    const storedUser = localStorage.getItem('demoUser')
+    return storedUser ? (JSON.parse(storedUser) as DemoUser) : null
+  } catch {
+    return null
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any | null>(null)
+  const [user, setUser] = useState<User | DemoUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check localStorage for demo user
-    function checkDemoUser() {
-      try {
-        const storedUser = localStorage.getItem('demoUser')
-        if (storedUser) {
-          setUser(JSON.parse(storedUser))
-          setLoading(false)
-          return true
-        }
-      } catch {
-        // Ignore parse errors
-      }
-      return false
+    const demoUser = readDemoUser()
+    if (demoUser) {
+      setUser(demoUser)
+      setLoading(false)
+      return
     }
 
-    // First check localStorage
-    if (checkDemoUser()) return
-
-    // Try to use Firebase if available
-    try {
-      const { auth } = require('@/lib/firebase/config')
-      const { onAuthStateChanged } = require('firebase/auth')
-
-      const unsubscribe = onAuthStateChanged(auth, (firebaseUser: any) => {
-        setUser(firebaseUser)
-        setLoading(false)
-      })
-
-      return () => unsubscribe()
-    } catch (err) {
-      console.log('[v0] Firebase unavailable, using fallback auth')
+    const supabase = getSupabaseClient()
+    if (!supabase) {
       setLoading(false)
+      return
+    }
+
+    let active = true
+
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return
+      if (error) {
+        console.warn('[auth] Failed to load session user', error.message)
+      }
+      setUser(data.user ?? null)
+      setLoading(false)
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? readDemoUser())
+      setLoading(false)
+    })
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
     }
   }, [])
 
-  // Listen for storage changes
   useEffect(() => {
     function handleStorageChange() {
-      try {
-        const storedUser = localStorage.getItem('demoUser')
-        if (storedUser) {
-          setUser(JSON.parse(storedUser))
-        } else {
-          setUser(null)
-        }
-      } catch {
-        // Ignore errors
-      }
+      setUser(readDemoUser())
     }
 
-    window.addEventListener('storage', handleStorageChange)
     window.addEventListener('storage', handleStorageChange)
     return () => {
       window.removeEventListener('storage', handleStorageChange)
-      window.removeEventListener('storage', handleStorageChange)
     }
   }, [])
 
-  return (
-    <AuthContext.Provider value={{ user, loading }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
   return useContext(AuthContext)
 }
 
-// Demo auth functions
 export async function loginDemo() {
   const demoUser: DemoUser = {
-    uid: 'demo-user-' + Math.random().toString(36).substr(2, 9),
+    uid: 'demo-user-' + Math.random().toString(36).slice(2, 11),
     email: 'demo@youtube-ai.com',
     displayName: 'Demo User',
   }
   localStorage.setItem('demoUser', JSON.stringify(demoUser))
-  // Update window to trigger a state refresh
   window.dispatchEvent(new Event('storage'))
 }
 
