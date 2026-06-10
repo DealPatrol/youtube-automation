@@ -95,7 +95,7 @@ export default function ShortsGeneratorPage() {
           durationSeconds,
           voice,
           renderMode,
-          user_id: user?.uid,
+          user_id: user ? ('uid' in user ? user.uid : user.id) : undefined,
           autoUpload: false,
         }),
       })

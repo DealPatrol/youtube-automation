@@ -1,31 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+/**
+ * Legacy endpoint kept for backwards compatibility.
+ * Proxies to /api/youtube/upload, which holds the real googleapis
+ * implementation (resumable upload, captions, status checks).
+ */
 
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
+const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
 
 export async function POST(request: NextRequest) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
-    }
-    const resultId = searchParams.get('resultId')
-    const accessToken = searchParams.get('accessToken')
+    const body = await request.json().catch(() => ({}))
+    const { searchParams } = new URL(request.url)
+
+    const resultId = body.resultId || searchParams.get('resultId')
+    const accessToken = body.accessToken || searchParams.get('accessToken')
+    const publishAt = body.publishAt || searchParams.get('publishAt')
 
     if (!resultId || !accessToken) {
       return NextResponse.json(
@@ -34,55 +24,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[API] YouTube upload started for result:', resultId)
-
-    // Fetch result data from Supabase
-    const { data: result, error: dbError } = await supabase
-      .from('results')
-      .select('*')
-      .eq('id', resultId)
-      .single()
-
-    if (dbError || !result) {
-      return NextResponse.json({ error: 'Result not found' }, { status: 404 })
+    const target = new URL(`${baseUrl}/api/youtube/upload`)
+    target.searchParams.set('action', 'upload')
+    target.searchParams.set('resultId', resultId)
+    target.searchParams.set('accessToken', accessToken)
+    if (publishAt) {
+      target.searchParams.set('publishAt', publishAt)
     }
 
-    // Prepare video metadata from result
-    const metadata = {
-      title: result.seo?.title || 'Untitled Video',
-      description: result.seo?.description || 'Generated with AI Video Creator',
-      tags: result.seo?.tags || [],
-      categoryId: result.seo?.categoryId || '22',
-      privacyStatus: result.seo?.privacyStatus || 'private',
-      madeForKids: result.seo?.madeForKids || false,
-    }
-
-    // Call the Python backend or Node.js handler to upload
-    // For now, we'll create a mock response since actual file upload needs the backend
-    console.log('[API] Upload metadata:', metadata)
-
-    // Update result status in Supabase
-    const { error: updateError } = await supabase
-      .from('results')
-      .update({
-        youtube_status: 'uploading',
-        youtube_metadata: metadata,
-      })
-      .eq('id', resultId)
-
-    if (updateError) {
-      console.error('[API] Failed to update result:', updateError)
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video upload to YouTube initiated',
-      resultId,
-      metadata,
-      note: 'For production, connect your FastAPI backend to handle actual file uploads with googleapis library',
-    })
+    const response = await fetch(target.toString(), { method: 'POST' })
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error('[API] YouTube upload error:', error)
+    console.error('[API] YouTube upload proxy error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to upload to YouTube' },
       { status: 500 }
@@ -103,19 +57,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('[API] Checking upload status for video:', videoId)
+    const target = new URL(`${baseUrl}/api/youtube/upload`)
+    target.searchParams.set('action', 'status')
+    target.searchParams.set('videoId', videoId)
+    target.searchParams.set('accessToken', accessToken)
 
-    // In production, call the backend service to check status with googleapis
-    return NextResponse.json({
-      videoId,
-      uploadStatus: 'UPLOADED',
-      processingProgress: {
-        partsProcessed: 100,
-        partsTotal: 100,
-        timeLeftMs: 0,
-      },
-      note: 'Status check requires backend integration with googleapis',
-    })
+    const response = await fetch(target.toString(), { method: 'POST' })
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error) {
     console.error('[API] Status check error:', error)
     return NextResponse.json(

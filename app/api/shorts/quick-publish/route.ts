@@ -157,7 +157,7 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
         ],
         temperature: 0.7,
         max_output_tokens: 3000,
-        response_format: { type: 'json_object' },
+        text: { format: { type: 'json_object' } },
       })
     } catch (err: any) {
       const msg = err?.error?.message || err?.message || 'OpenAI request failed'
@@ -242,11 +242,11 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
     // ── Step 6: upload to YouTube (optional) ────────────────────────────
     let youtubeResult: any = null
     if (autoUpload && accessToken) {
-      const uploadResponse = await fetch(`${baseUrl}/api/youtube-upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resultId, accessToken }),
-      })
+      const uploadUrl = new URL(`${baseUrl}/api/youtube/upload`)
+      uploadUrl.searchParams.set('action', 'upload')
+      uploadUrl.searchParams.set('resultId', resultId)
+      uploadUrl.searchParams.set('accessToken', accessToken)
+      const uploadResponse = await fetch(uploadUrl.toString(), { method: 'POST' })
       if (uploadResponse.ok) {
         youtubeResult = await uploadResponse.json()
       } else {

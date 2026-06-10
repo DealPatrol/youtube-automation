@@ -55,20 +55,12 @@ export async function GET(request: Request) {
           continue
         }
 
-        // Get SEO data
-        const seo = result.seo || {}
-        const title = seo.title || video.title || video.topic
-        const description = seo.description || ''
-        const tags = seo.tags || []
-
         // Upload to YouTube (call our YouTube upload API)
         const uploadResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/youtube-upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title,
-            description,
-            tags,
+            resultId: result.id,
             accessToken: process.env.YOUTUBE_ACCESS_TOKEN, // Service account token
           }),
         })
