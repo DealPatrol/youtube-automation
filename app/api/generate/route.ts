@@ -2,6 +2,11 @@ import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 
+declare global {
+  // eslint-disable-next-line no-var
+  var demoResults: Record<string, unknown> | undefined
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -180,21 +185,11 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
 
     let response
     try {
+      // Stored-prompt feature requires a newer SDK; cast to any to allow
+      // callers who have OPENAI_PROMPT_ID set to use it without a type error.
       response = promptId
-        ? await client.responses.create({
+        ? await (client.responses.create as any)({
             prompt: { id: promptId, version: promptVersion },
-            input: {
-              topic,
-              description,
-              video_length_minutes,
-              youtube_clip_duration,
-              tiktok_clip_duration,
-              tone,
-              platform,
-              totalSeconds,
-              numScenes,
-              avgSceneSeconds,
-            },
           })
         : await client.responses.create({
             model: 'gpt-4o-mini',
@@ -204,7 +199,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
             ],
             temperature: 0.7,
             max_output_tokens: 6000,
-            response_format: { type: 'json_object' },
+            text: { format: { type: 'json_object' } },
           })
     } catch (error: any) {
       const errorPayload = error?.error ?? error
