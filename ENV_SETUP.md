@@ -19,6 +19,8 @@ Notes:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` is required by the auth context and dashboard pages.
 - `SUPABASE_SERVICE_ROLE_KEY` is required by server routes that write projects, results, uploads, and package downloads.
 - `SUPABASE_STORAGE_BUCKET` defaults to `videos` if omitted.
+- On Render, `RENDER_EXTERNAL_URL` is detected automatically and `NEXTAUTH_URL` can be omitted.
+  Set `NEXTAUTH_URL` when using a custom domain.
 
 ## 2. Video generation and media routes
 
@@ -45,10 +47,10 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
 ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 BACKGROUND_MUSIC_URL=
-BACKGROUND_MUSIC_PATH=./public/audio/background.mp3
+BACKGROUND_MUSIC_PATH=
 BACKGROUND_MUSIC_VOLUME=0.2
 BRANDING_LOGO_URL=
-BRANDING_LOGO_PATH=./public/placeholder-logo.png
+BRANDING_LOGO_PATH=
 BRANDING_LOGO_SCALE=0.12
 BRANDING_LOGO_OPACITY=0.85
 BRANDING_LOGO_POSITION=top-right
@@ -57,7 +59,7 @@ BRANDING_LOGO_PADDING=24
 
 Notes:
 - OpenAI TTS and Whisper features still need `OPENAI_API_KEY`.
-- Branding and background assets can be served from a URL or read from a local path.
+- Branding and background assets can be served from a URL or read from a file under `public/`.
 
 ## 4. YouTube auth and upload
 

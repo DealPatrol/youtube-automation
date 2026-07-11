@@ -7,6 +7,7 @@ Pulls jobs from Redis queue and renders videos using MoviePy + FFmpeg
 import os
 import sys
 import json
+import uuid
 import requests
 from pathlib import Path
 from typing import Optional

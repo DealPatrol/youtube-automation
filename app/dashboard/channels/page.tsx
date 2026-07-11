@@ -33,7 +33,6 @@ interface Channel {
 export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [loading, setLoading] = useState(true)
-  const [connecting, setConnecting] = useState(false)
 
   useEffect(() => {
     loadChannels()
@@ -53,14 +52,7 @@ export default function ChannelsPage() {
   }
 
   async function connectYouTube() {
-    setConnecting(true)
-    try {
-      // Redirect to YouTube OAuth
-      window.location.href = '/api/auth/youtube'
-    } catch (error) {
-      console.error('Failed to connect YouTube:', error)
-      setConnecting(false)
-    }
+    window.location.href = '/'
   }
 
   async function disconnectChannel(channelId: string) {
@@ -107,7 +99,7 @@ export default function ChannelsPage() {
               Connect a Channel
             </CardTitle>
             <CardDescription>
-              Link your social media accounts to enable direct video uploads
+                YouTube authorization starts from a finished video so credentials stay attached to the correct upload.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -116,10 +108,9 @@ export default function ChannelsPage() {
                 variant="outline" 
                 className="h-20 flex flex-col gap-2 bg-transparent hover:bg-red-50 hover:border-red-300 dark:hover:bg-red-950"
                 onClick={connectYouTube}
-                disabled={connecting}
               >
                 <Youtube className="w-8 h-8 text-red-500" />
-                <span>{connecting ? 'Connecting...' : 'YouTube'}</span>
+                <span>Create a YouTube video</span>
               </Button>
               <Button 
                 variant="outline" 
@@ -180,9 +171,9 @@ export default function ChannelsPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Connect a YouTube channel to start uploading videos directly
                 </p>
-                <Button onClick={connectYouTube} disabled={connecting}>
+                <Button onClick={connectYouTube}>
                   <Youtube className="w-4 h-4 mr-2" />
-                  Connect YouTube
+                  Create a video to connect
                 </Button>
               </div>
             ) : (

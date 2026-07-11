@@ -87,15 +87,26 @@ export default function VideoEditor() {
   }
 
   const applyEdits = async () => {
-    if (!videoFile) return
-    
+    if (!videoUrl) return
+
     setProcessing(true)
     setProgress(0)
+    setError('')
 
     try {
-      // Create FormData to send video file
+      let sourceFile = videoFile
+      if (!sourceFile) {
+        const sourceResponse = await fetch(videoUrl)
+        if (!sourceResponse.ok) {
+          throw new Error('Could not download the rendered video for editing')
+        }
+        sourceFile = new File([await sourceResponse.blob()], 'rendered-video.mp4', {
+          type: 'video/mp4',
+        })
+      }
+
       const formData = new FormData()
-      formData.append('video', videoFile)
+      formData.append('video', sourceFile)
       formData.append('trimStart', trimStart.toString())
       formData.append('trimEnd', trimEnd.toString())
       formData.append('overlayText', overlayText)
@@ -107,7 +118,8 @@ export default function VideoEditor() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to process video')
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.error || 'Failed to process video')
       }
 
       // Download the processed video
@@ -115,13 +127,14 @@ export default function VideoEditor() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `edited-${videoFile.name}`
+      a.download = `edited-${sourceFile.name}`
       a.click()
+      URL.revokeObjectURL(url)
       
       setProgress(100)
     } catch (error) {
       console.error('Edit error:', error)
-      alert('Failed to process video')
+      setError(error instanceof Error ? error.message : 'Failed to process video')
     } finally {
       setProcessing(false)
     }
@@ -209,7 +222,7 @@ export default function VideoEditor() {
                 ) : (
                   <div className="space-y-4">
                     <div className="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
-                      {videoUrl.endsWith('.mp4') || videoUrl.startsWith('blob:') ? (
+                      {projectData?.videoUrl || videoUrl.startsWith('blob:') ? (
                         <video
                           ref={videoRef}
                           src={videoUrl}
@@ -245,7 +258,13 @@ export default function VideoEditor() {
                         )}
                         {isPlaying ? 'Pause' : 'Play'}
                       </Button>
-                      <Button size="sm" variant="outline" className="bg-transparent">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-transparent"
+                        onClick={applyEdits}
+                        disabled={processing}
+                      >
                         <Download className="w-4 h-4 mr-2" />
                         Export
                       </Button>

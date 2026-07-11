@@ -51,6 +51,7 @@ export function optimizeScenesForShorts(
 ): ShortsScene[] {
   const totalDuration = Math.min(requestedDurationSeconds, SHORTS_MAX_DURATION_SECONDS)
   const sceneCount = Math.min(scenes.length, SHORTS_MAX_SCENES)
+  if (sceneCount === 0) return []
   const trimmedScenes = scenes.slice(0, sceneCount)
   const sceneDuration = Math.floor(totalDuration / sceneCount)
 

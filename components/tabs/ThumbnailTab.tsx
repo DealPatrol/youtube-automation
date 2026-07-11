@@ -4,11 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
 interface ThumbnailData {
-  design_description: string
-  color_palette: string[]
-  text_suggestions: string[]
-  layout_tips: string
-  accessibility_notes: string
+  text?: string
+  image_prompt?: string
+  emotion?: string
+  design_description?: string
+  color_palette?: string[]
+  text_suggestions?: string[]
+  layout_tips?: string
+  accessibility_notes?: string
+  image_url?: string
 }
 
 interface ThumbnailTabProps {
@@ -16,6 +20,15 @@ interface ThumbnailTabProps {
 }
 
 export default function ThumbnailTab({ thumbnail }: ThumbnailTabProps) {
+  const designDescription =
+    thumbnail.design_description || thumbnail.image_prompt || 'No thumbnail concept was generated.'
+  const colors = thumbnail.color_palette || []
+  const textSuggestions = thumbnail.text_suggestions?.length
+    ? thumbnail.text_suggestions
+    : thumbnail.text
+      ? [thumbnail.text]
+      : []
+
   return (
     <Card>
       <CardHeader>
@@ -25,11 +38,18 @@ export default function ThumbnailTab({ thumbnail }: ThumbnailTabProps) {
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
+        {thumbnail.image_url && (
+          <img
+            src={thumbnail.image_url}
+            alt={thumbnail.text || 'Generated video thumbnail'}
+            className="aspect-video w-full rounded-lg border border-border object-cover"
+          />
+        )}
         {/* Design Description */}
         <div>
           <h4 className="font-semibold mb-2">Design Concept</h4>
           <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-            {thumbnail.design_description}
+            {designDescription}
           </p>
         </div>
 
@@ -37,7 +57,7 @@ export default function ThumbnailTab({ thumbnail }: ThumbnailTabProps) {
         <div>
           <h4 className="font-semibold mb-3">Recommended Colors</h4>
           <div className="flex flex-wrap gap-3">
-            {thumbnail.color_palette.map((color, idx) => (
+            {colors.length > 0 ? colors.map((color, idx) => (
               <div key={idx} className="flex items-center gap-2">
                 <div
                   className="w-12 h-12 rounded-lg border border-border shadow-sm"
@@ -46,7 +66,7 @@ export default function ThumbnailTab({ thumbnail }: ThumbnailTabProps) {
                 />
                 <span className="text-sm font-mono text-muted-foreground">{color}</span>
               </div>
-            ))}
+            )) : <p className="text-sm text-muted-foreground">Use high-contrast brand colors.</p>}
           </div>
         </div>
 
@@ -54,7 +74,7 @@ export default function ThumbnailTab({ thumbnail }: ThumbnailTabProps) {
         <div>
           <h4 className="font-semibold mb-3">Text & Typography</h4>
           <div className="space-y-2">
-            {thumbnail.text_suggestions.map((suggestion, idx) => (
+            {textSuggestions.map((suggestion, idx) => (
               <div key={idx} className="p-3 rounded-lg border border-border bg-card/50">
                 <p className="text-sm">{suggestion}</p>
               </div>
@@ -68,7 +88,7 @@ export default function ThumbnailTab({ thumbnail }: ThumbnailTabProps) {
             📐 Layout & Composition
           </p>
           <p className="text-sm text-green-800 dark:text-green-300 leading-relaxed">
-            {thumbnail.layout_tips}
+            {thumbnail.layout_tips || 'Keep one clear focal point and leave safe space for short text.'}
           </p>
         </div>
 
@@ -103,7 +123,7 @@ export default function ThumbnailTab({ thumbnail }: ThumbnailTabProps) {
             ♿ Accessibility Notes
           </p>
           <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-            {thumbnail.accessibility_notes}
+            {thumbnail.accessibility_notes || 'Use strong contrast and readable text at mobile size.'}
           </p>
         </div>
       </CardContent>

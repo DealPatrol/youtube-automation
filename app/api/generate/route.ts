@@ -1,9 +1,18 @@
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
+import {
+  buildContentPrompt,
+  buildContentResponseFormat,
+  createGenerationPlan,
+  normalizeGeneratedContent,
+} from '@/lib/content/generation'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 export async function POST(request: Request) {
   try {
@@ -20,11 +29,6 @@ export async function POST(request: Request) {
     const supabase = createClient(supabaseUrl, supabaseKey)
     const openaiKey = process.env.OPENAI_API_KEY?.trim()
     
-    console.log('[API] OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
-    console.log('[API] OPENAI_API_KEY trimmed:', !!openaiKey)
-    console.log('[API] OPENAI_API_KEY length:', openaiKey?.length)
-    console.log('[API] OPENAI_API_KEY first 10 chars:', openaiKey?.substring(0, 10))
-
     if (!openaiKey) {
       console.error('[API] Missing OPENAI_API_KEY')
       return NextResponse.json(
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
     }
 
     if (!openaiKey.startsWith('sk-')) {
-      console.error('[API] Invalid OPENAI_API_KEY format - does not start with sk-', `Got: ${openaiKey.substring(0, 20)}`)
+      console.error('[API] Invalid OPENAI_API_KEY format - does not start with sk-')
       return NextResponse.json(
         { error: 'Invalid OpenAI API key format. API key should start with "sk-"' },
         { status: 500 }
@@ -100,199 +104,54 @@ export async function POST(request: Request) {
       resultId = resultData.id
       console.log('[API] Result created:', resultId)
 
-      // Call OpenAI API to generate content
-      const totalSeconds = video_length_minutes * 60
-      const requestedSceneSeconds =
-        platform === 'tiktok' && tiktok_clip_duration > 0
-          ? tiktok_clip_duration
-          : youtube_clip_duration > 0
-            ? youtube_clip_duration
-            : 10
-      let numScenes = Math.max(Math.floor(totalSeconds / requestedSceneSeconds), 10)
-      const maxScenes = 30
-      if (numScenes > maxScenes) {
-        numScenes = maxScenes
-      }
-      const avgSceneSeconds = Math.max(Math.round(totalSeconds / numScenes), 8)
+      const plan = createGenerationPlan({
+        platform,
+        durationMinutes: video_length_minutes,
+        youtubeSceneSeconds: youtube_clip_duration,
+        verticalSceneSeconds: tiktok_clip_duration,
+      })
+      const prompt = buildContentPrompt({
+        topic,
+        description,
+        tone,
+        plan,
+      })
 
-      const systemPrompt = `You are an expert YouTube video creator. Generate ONLY valid JSON (no markdown, no code blocks, no explanations).
-
-CRITICAL: Create exactly ${numScenes} scenes for this ${video_length_minutes}-minute (${totalSeconds} seconds) video. Each scene should be about ${avgSceneSeconds} seconds long.
-
-Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${platform} video about the given topic:
-
-{
-  "script": {
-    "title": "Compelling video title (under 60 chars)",
-    "duration": ${video_length_minutes},
-    "content": "2-3 sentence hook and overview of the entire video",
-    "sections": [
-      {"time": "0:00", "speaker": "Narrator", "text": "Opening hook to grab attention"},
-      {"time": "0:30", "speaker": "Narrator", "text": "What viewers will learn"},
-      {"time": "1:00", "speaker": "Narrator", "text": "First main point with details"},
-      {"time": "${Math.floor(video_length_minutes / 2)}:00", "speaker": "Narrator", "text": "Second main point with examples"},
-      {"time": "${Math.floor(video_length_minutes * 0.75)}:00", "speaker": "Narrator", "text": "Third main point or deeper dive"},
-      {"time": "${video_length_minutes - 1}:00", "speaker": "Narrator", "text": "Call to action and closing"}
-    ]
-  },
-  "scenes": [
-    Generate EXACTLY ${numScenes} scenes. Each scene MUST have:
-    - Unique id (1 to ${numScenes})
-    - Descriptive title
-    - start_time and end_time (covering the full ${totalSeconds} seconds)
-    - Detailed visual_description (for AI image/video generation)
-    - on_screen_text (key message or text overlay)
-    - narration (word-for-word voiceover text for THIS specific scene, about ${avgSceneSeconds} seconds worth of dialogue)
-    
-    Example for first 3 scenes of ${numScenes} total:
-    {"id": 1, "title": "Opening Hook", "start_time": "0:00", "end_time": "0:10", "visual_description": "Dynamic opening visual", "on_screen_text": "Hook text"},
-    {"id": 2, "title": "Introduction", "start_time": "0:10", "end_time": "0:20", "visual_description": "Topic introduction visual", "on_screen_text": "Intro text"},
-    {"id": 3, "title": "First Point", "start_time": "0:20", "end_time": "0:30", "visual_description": "First main point visual", "on_screen_text": "Point 1"}
-    ... continue until scene ${numScenes} ends at ${totalSeconds} seconds
-  ],
-  "capcut_steps": ["Step 1: Import and organize footage", "Step 2: Arrange timeline and trim clips", "Step 3: Add text overlays and graphics", "Step 4: Mix audio and add music", "Step 5: Export at optimal settings"],
-  "seo": {
-    "title": "SEO optimized title with main keyword",
-    "description": "2-3 sentence description explaining what viewers will learn",
-    "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-  },
-  "thumbnail": {
-    "text": "Bold text (2-4 words max) for the thumbnail",
-    "image_prompt": "Description of image concept that grabs attention",
-    "emotion": "The primary emotion this thumbnail should evoke"
-  }
-}`
-
-      const userPrompt = `Create a ${video_length_minutes}-minute (${totalSeconds} seconds total) ${tone} tone ${platform} video outline for: "${topic}"${description ? `\n\nAdditional context: ${description}` : ''}
-
-CRITICAL REQUIREMENTS:
-- Generate EXACTLY ${numScenes} scenes
-- Each scene should be about ${avgSceneSeconds} seconds long
-- Scenes must cover the full ${totalSeconds} seconds (start at 0:00, end at ${video_length_minutes}:00)
-- Every scene must have detailed visual_description for AI generation
-
-Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
-
-    console.log('[API] Calling OpenAI API with responses API')
-    const client = new OpenAI({ apiKey: openaiKey })
-    const promptId = process.env.OPENAI_PROMPT_ID
-    const promptVersion = process.env.OPENAI_PROMPT_VERSION || '1'
-
-    let response
-    try {
-      response = promptId
-        ? await client.responses.create({
-            prompt: { id: promptId, version: promptVersion },
-            input: {
-              topic,
-              description,
-              video_length_minutes,
-              youtube_clip_duration,
-              tiktok_clip_duration,
-              tone,
-              platform,
-              totalSeconds,
-              numScenes,
-              avgSceneSeconds,
-            },
-          })
-        : await client.responses.create({
-            model: 'gpt-4o-mini',
-            input: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.7,
-            max_output_tokens: 6000,
-            response_format: { type: 'json_object' },
-          })
-    } catch (error: any) {
-      const errorPayload = error?.error ?? error
-      console.error('[API] OpenAI error response:', JSON.stringify(errorPayload, null, 2))
-      if (errorPayload?.code === 'invalid_api_key') {
-        throw new Error('Invalid OpenAI API key. Please check your API key in the Vars section and ensure it starts with "sk-".')
-      }
-      throw new Error(errorPayload?.message || 'OpenAI API request failed')
-    }
-
-    const outputText =
-      response.output_text ??
-      response.output
-        ?.map((item: any) => item.content?.map((part: any) => part.text || '').join(''))
-        .join('') ??
-      ''
-    let content = outputText.trim()
-    console.log('[API] Received OpenAI response, parsing...')
-
-      // Parse the JSON response (repair if needed)
-      let generatedContent
+      console.log('[API] Generating structured production package')
+      const client = new OpenAI({ apiKey: openaiKey })
+      let response
       try {
-        const jsonMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/)
-        let jsonStr = jsonMatch ? jsonMatch[1] : content
-
-        try {
-          generatedContent = JSON.parse(jsonStr)
-        } catch (firstAttemptError) {
-          console.log('[API] First parse attempt failed, attempting recovery...')
-
-          const openBraces = (jsonStr.match(/{/g) || []).length
-          const closeBraces = (jsonStr.match(/}/g) || []).length
-
-          if (openBraces > closeBraces) {
-            jsonStr += '}'.repeat(openBraces - closeBraces)
-            console.log('[API] Added missing closing braces')
-          }
-
-          const validJsonMatch = jsonStr.match(/\{[\s\S]*\}/)
-          if (validJsonMatch) {
-            jsonStr = validJsonMatch[0]
-          }
-
-          generatedContent = JSON.parse(jsonStr)
-        }
-      } catch (parseError) {
-        console.error('[API] JSON parse error:', parseError)
-        console.error('[API] Raw content:', content)
-        console.log('[API] Attempting JSON repair with OpenAI...')
-
-        const repairResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${openaiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You fix malformed JSON. Return ONLY a valid JSON object that matches the original schema.',
-              },
-              {
-                role: 'user',
-                content: `Fix this JSON and return valid JSON only:\n${content}`,
-              },
-            ],
-            temperature: 0,
-            max_tokens: 4000,
-            response_format: { type: 'json_object' },
-          }),
+        response = await client.responses.create({
+          model: process.env.OPENAI_CONTENT_MODEL || 'gpt-4o-mini',
+          input: [
+            { role: 'system', content: prompt.system },
+            { role: 'user', content: prompt.user },
+          ],
+          temperature: 0.7,
+          max_output_tokens: 12000,
+          text: { format: buildContentResponseFormat(plan.sceneCount) },
         })
-
-        if (!repairResponse.ok) {
-          const repairError = await repairResponse.text()
-          console.error('[API] JSON repair failed:', repairError)
-          throw new Error('Failed to parse generated content as JSON')
+      } catch (error: any) {
+        const errorPayload = error?.error ?? error
+        console.error('[API] OpenAI generation failed:', errorPayload?.code || errorPayload?.message)
+        if (errorPayload?.code === 'invalid_api_key') {
+          throw new Error('Invalid OpenAI API key. Check the configured OPENAI_API_KEY.')
         }
-
-        const repairData = await repairResponse.json()
-        const repairedContent = repairData.choices?.[0]?.message?.content?.trim()
-        if (!repairedContent) {
-          throw new Error('Failed to parse generated content as JSON')
-        }
-        generatedContent = JSON.parse(repairedContent)
+        throw new Error(errorPayload?.message || 'OpenAI content generation failed')
       }
+
+      const outputText = response.output_text?.trim()
+      if (!outputText) {
+        throw new Error('OpenAI returned an empty production package')
+      }
+
+      let parsedContent: unknown
+      try {
+        parsedContent = JSON.parse(outputText)
+      } catch {
+        throw new Error('OpenAI returned malformed structured content')
+      }
+      const generatedContent = normalizeGeneratedContent(parsedContent, plan)
 
       // Update result with generated content
       if (supabase) {

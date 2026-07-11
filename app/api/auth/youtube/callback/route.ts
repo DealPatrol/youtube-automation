@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getPublicAppUrl } from '@/lib/config/app-url'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -25,10 +26,21 @@ export async function GET(request: Request) {
       )
     }
 
-    if (error) {
+    const { searchParams } = new URL(request.url)
+    const authorizationError = searchParams.get('error')
+    const code = searchParams.get('code')
+    const resultId = searchParams.get('state')
+    const clientId = process.env.YOUTUBE_CLIENT_ID
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
+
+    if (!clientId || !clientSecret) {
+      throw new Error('YouTube OAuth is not configured')
+    }
+
+    if (authorizationError) {
       const redirectUrl = resultId && resultId !== 'unknown' 
-        ? `/results/${resultId}?youtube_error=${encodeURIComponent(error)}`
-        : `/?youtube_error=${encodeURIComponent(error)}`
+        ? `/results/${resultId}?youtube_error=${encodeURIComponent(authorizationError)}`
+        : `/?youtube_error=${encodeURIComponent(authorizationError)}`
       return NextResponse.redirect(new URL(redirectUrl, request.url))
     }
 
@@ -48,7 +60,7 @@ export async function GET(request: Request) {
         client_secret: clientSecret,
         code,
         grant_type: 'authorization_code',
-        redirect_uri: `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/auth/youtube/callback`,
+        redirect_uri: `${getPublicAppUrl()}/api/auth/youtube/callback`,
       }).toString(),
     })
 

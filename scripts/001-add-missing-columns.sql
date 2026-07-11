@@ -14,6 +14,7 @@ ALTER TABLE results ADD COLUMN IF NOT EXISTS youtube_access_token text;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS youtube_video_id text;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS youtube_url text;
 ALTER TABLE results ADD COLUMN IF NOT EXISTS youtube_status text;
+ALTER TABLE results ADD COLUMN IF NOT EXISTS thumbnail_url text;
 
 -- Create youtube_tokens table for storing OAuth tokens per user (not per result)
 CREATE TABLE IF NOT EXISTS youtube_tokens (

@@ -21,6 +21,11 @@ interface SEOTabProps {
 
 export default function SEOTab({ seo }: SEOTabProps) {
   const [copied, setCopied] = useState<string | null>(null)
+  const title = seo.title || ''
+  const description = seo.description || ''
+  const tags = seo.tags || []
+  const hashtags = seo.hashtags || []
+  const pinnedComment = seo.pinned_comment || ''
 
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text)
@@ -38,17 +43,17 @@ export default function SEOTab({ seo }: SEOTabProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Title */}
-        {seo.title && (
+        {title && (
           <div>
             <label className="text-sm font-medium">Video Title</label>
             <div className="flex gap-2 mt-2">
               <div className="flex-1 p-3 rounded-lg border border-border bg-card/50 break-words">
-                <p className="text-sm">{seo.title}</p>
+                <p className="text-sm">{title}</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.title, 'title')}
+                onClick={() => handleCopy(title, 'title')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'title' ? (
@@ -59,23 +64,23 @@ export default function SEOTab({ seo }: SEOTabProps) {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Character count: {seo.title.length}/60
+              Character count: {title.length}/60
             </p>
           </div>
         )}
 
         {/* Description */}
-        {seo.description && (
+        {description && (
           <div>
             <label className="text-sm font-medium">Video Description</label>
             <div className="flex gap-2 mt-2">
               <div className="flex-1 p-3 rounded-lg border border-border bg-card/50 break-words">
-                <p className="text-sm whitespace-pre-wrap">{seo.description}</p>
+                <p className="text-sm whitespace-pre-wrap">{description}</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.description, 'description')}
+                onClick={() => handleCopy(description, 'description')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'description' ? (
@@ -86,23 +91,23 @@ export default function SEOTab({ seo }: SEOTabProps) {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Character count: {seo.description.length}/5000
+              Character count: {description.length}/5000
             </p>
           </div>
         )}
 
         {/* Tags */}
-        {seo.tags && seo.tags.length > 0 && (
+        {tags.length > 0 && (
           <div>
             <label className="text-sm font-medium">Tags</label>
             <div className="flex gap-2 mt-2">
               <div className="flex-1 p-3 rounded-lg border border-border bg-card/50 break-words">
-                <p className="text-sm">{seo.tags.join(', ')}</p>
+                <p className="text-sm">{tags.join(', ')}</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.tags.join(', '), 'tags')}
+                onClick={() => handleCopy(tags.join(', '), 'tags')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'tags' ? (
@@ -133,17 +138,17 @@ export default function SEOTab({ seo }: SEOTabProps) {
         )}
 
         {/* Hashtags */}
-        {seo.hashtags && seo.hashtags.length > 0 && (
+        {hashtags.length > 0 && (
           <div>
             <label className="text-sm font-medium">Hashtags</label>
             <div className="flex gap-2 mt-2">
               <div className="flex-1 p-3 rounded-lg border border-border bg-card/50 break-words">
-                <p className="text-sm">{seo.hashtags.join(' ')}</p>
+                <p className="text-sm">{hashtags.join(' ')}</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.hashtags.join(' '), 'hashtags')}
+                onClick={() => handleCopy(hashtags.join(' '), 'hashtags')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'hashtags' ? (
@@ -157,17 +162,17 @@ export default function SEOTab({ seo }: SEOTabProps) {
         )}
 
         {/* Pinned Comment */}
-        {seo.pinned_comment && (
+        {pinnedComment && (
           <div>
             <label className="text-sm font-medium">Pinned Comment</label>
             <div className="flex gap-2 mt-2">
               <div className="flex-1 p-3 rounded-lg border border-border bg-card/50 break-words">
-                <p className="text-sm whitespace-pre-wrap">{seo.pinned_comment}</p>
+                <p className="text-sm whitespace-pre-wrap">{pinnedComment}</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleCopy(seo.pinned_comment, 'pinned')}
+                onClick={() => handleCopy(pinnedComment, 'pinned')}
                 className="bg-transparent flex-shrink-0"
               >
                 {copied === 'pinned' ? (

@@ -47,3 +47,7 @@ test('getRuntimeStatusEnv treats missing values as false', () => {
     xCredentials: false,
   })
 })
+
+test('getRuntimeStatusEnv recognizes bundled local FFmpeg assembly', () => {
+  assert.equal(getRuntimeStatusEnv({}, true).videoAssemblyUrl, true)
+})

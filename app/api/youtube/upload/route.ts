@@ -62,7 +62,7 @@ async function uploadVideoToYouTube(
     // Upload video with resumable upload
     const response = await youtube.videos.insert(
       {
-        part: 'snippet,status,processingDetails',
+        part: ['snippet', 'status', 'processingDetails'],
         requestBody: {
           snippet: {
             title: metadata.title || 'Untitled Video',
@@ -95,13 +95,17 @@ async function uploadVideoToYouTube(
       }
     )
 
-    console.log(`[YouTube] Upload complete! Video ID: ${response.data.id}`)
+    const videoId = response.data.id
+    if (!videoId) {
+      throw new Error('YouTube did not return a video ID')
+    }
+    console.log(`[YouTube] Upload complete! Video ID: ${videoId}`)
 
     return {
       success: true,
-      videoId: response.data.id,
+      videoId,
       title: response.data.snippet?.title,
-      url: `https://www.youtube.com/watch?v=${response.data.id}`,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
     }
   } catch (error) {
     console.error('[YouTube] Upload error:', error)
@@ -195,7 +199,7 @@ async function uploadCaptionsToYouTube(options: {
   const youtube = google.youtube({ version: 'v3', auth })
 
   await youtube.captions.insert({
-    part: 'snippet',
+    part: ['snippet'],
     requestBody: {
       snippet: {
         videoId: options.videoId,
@@ -224,7 +228,7 @@ async function getYouTubeUploadStatus(videoId: string, accessToken: string) {
     })
 
     const response = await youtube.videos.list({
-      part: 'processingDetails,status,snippet',
+      part: ['processingDetails', 'status', 'snippet'],
       id: [videoId],
     })
 

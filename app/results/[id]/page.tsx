@@ -15,13 +15,11 @@ import ScenesTab from '@/components/tabs/ScenesTab'
 import CapCutTab from '@/components/tabs/CapCutTab'
 import SEOTab from '@/components/tabs/SEOTab'
 import ThumbnailTab from '@/components/tabs/ThumbnailTab'
-import { useVideoRender } from '@/app/hooks/use-video-render'
 import Link from 'next/link'
+import { inferVideoAspectRatio } from '@/lib/video/format'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
 
 interface ResultData {
@@ -35,6 +33,11 @@ interface ResultData {
   error_message: string | null
   project_id: string
   video_url?: string
+  thumbnail_url?: string
+  projects?: {
+    platform?: string
+    video_length_minutes?: number
+  }
 }
 
 export default function ResultsPage() {
@@ -51,9 +54,6 @@ export default function ResultsPage() {
   const [rendering, setRendering] = useState(false)
   const [renderStatus, setRenderStatus] = useState('')
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [renderLoading, setRenderLoading] = useState(false)
-  const [renderError, setRenderError] = useState('')
-  const [job, setJob] = useState<any | null>(null)
   const [voiceProvider, setVoiceProvider] = useState<'openai' | 'elevenlabs'>('openai')
   const [voice, setVoice] = useState('alloy')
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState('')
@@ -91,7 +91,7 @@ export default function ResultsPage() {
         try {
           const { data, error: dbError } = await supabase
             .from('results')
-            .select('*')
+            .select('*, projects(platform, video_length_minutes)')
             .eq('id', resultId)
             .single()
 
@@ -126,6 +126,14 @@ export default function ResultsPage() {
       }
 
       setResult(resultData)
+      const query = new URLSearchParams(window.location.search)
+      if (query.get('youtube_connected') === 'true') {
+        setRenderStatus('YouTube connected. Click “Upload to YouTube” to publish this video.')
+      }
+      const youtubeError = query.get('youtube_error')
+      if (youtubeError) {
+        setRenderStatus(`YouTube connection error: ${youtubeError}`)
+      }
       setLoading(false)
     } catch (err) {
       console.error('[Results] Load error:', err)
@@ -249,9 +257,15 @@ export default function ResultsPage() {
       const assembleData = await assembleResponse.json()
       
       setRenderStatus('Video assembled! Generating thumbnail...')
-      
+      let generatedThumbnailUrl: string | undefined
+
       // Step 3: Generate thumbnail
       if (result.thumbnail) {
+        const aspectRatio = inferVideoAspectRatio(
+          undefined,
+          result.projects?.video_length_minutes,
+          result.projects?.platform
+        )
         const thumbResponse = await fetch('/api/generate-thumbnail', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -259,19 +273,29 @@ export default function ResultsPage() {
             text: result.thumbnail.text,
             imagePrompt: result.thumbnail.image_prompt,
             emotion: result.thumbnail.emotion,
+            aspectRatio,
+            resultId,
           }),
         })
         
         if (thumbResponse.ok) {
+          const thumbnailData = await thumbResponse.json()
+          generatedThumbnailUrl = thumbnailData.thumbnailUrl
           setRenderStatus('Complete! Video and thumbnail ready for YouTube.')
         }
       }
       
       setVideoUrl(assembleData.videoUrl)
       setSubtitleUrl(assembleData.subtitleUrl || null)
-      
-      // Reload result to get updated data
-      await loadResult()
+      setResult((current) =>
+        current
+          ? {
+              ...current,
+              video_url: assembleData.videoUrl,
+              thumbnail_url: generatedThumbnailUrl || current.thumbnail_url,
+            }
+          : current
+      )
     } catch (err) {
       console.error('[v0] Render error:', err)
       setRenderStatus(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -304,9 +328,10 @@ export default function ResultsPage() {
 
       // Fetch video file if available
       let videoFile: File | null = null
-      if (result.video_url) {
+      const sourceVideoUrl = videoUrl || result.video_url
+      if (sourceVideoUrl) {
         try {
-          const videoResponse = await fetch(result.video_url)
+          const videoResponse = await fetch(sourceVideoUrl)
           if (videoResponse.ok) {
             const blob = await videoResponse.blob()
             videoFile = new File([blob], 'video.mp4', { type: 'video/mp4' })
@@ -353,32 +378,6 @@ export default function ResultsPage() {
       setUploading(false)
     }
   }
-
-  async function startVideoRender() {
-    setRendering(true)
-    setRenderStatus('Starting video rendering...')
-
-    try {
-      const response = await fetch('/api/render-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resultId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to render video')
-      }
-
-      const data = await response.json()
-      setRenderStatus(`${data.message}. Estimated time: ${data.estimatedTime}`)
-    } catch (err) {
-      setRenderStatus(`Render error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-    } finally {
-      setRendering(false)
-    }
-  }
-
-  const renderVideoFunction = startVideoRender; // Declare the renderVideo variable
 
   if (authLoading) {
     return (
@@ -723,7 +722,12 @@ export default function ResultsPage() {
 
           <TabsContent value="thumbnail" className="mt-6 space-y-4">
             {result.thumbnail ? (
-              <ThumbnailTab thumbnail={result.thumbnail} />
+              <ThumbnailTab
+                thumbnail={{
+                  ...result.thumbnail,
+                  image_url: result.thumbnail_url,
+                }}
+              />
             ) : (
               <Card>
                 <CardContent className="pt-6">

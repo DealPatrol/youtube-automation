@@ -16,7 +16,7 @@ import {
   Smartphone,
   Upload,
 } from 'lucide-react'
-import { useAuth } from '@/lib/auth/auth-context'
+import { getAuthUserId, useAuth } from '@/lib/auth/auth-context'
 import { SHORTS_MAX_DURATION_SECONDS, SHORTS_MAX_SCENES } from '@/lib/video/shorts-optimizer'
 
 const DURATION_OPTIONS = [15, 30, 45, 60] as const
@@ -95,7 +95,7 @@ export default function ShortsGeneratorPage() {
           durationSeconds,
           voice,
           renderMode,
-          user_id: user?.uid,
+          user_id: getAuthUserId(user),
           autoUpload: false,
         }),
       })

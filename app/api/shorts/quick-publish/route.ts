@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import {
-  buildShortsPromptParams,
   buildShortsOptimization,
   SHORTS_MAX_DURATION_SECONDS,
 } from '@/lib/video/shorts-optimizer'
+import {
+  buildContentPrompt,
+  buildContentResponseFormat,
+  createGenerationPlan,
+  normalizeGeneratedContent,
+} from '@/lib/content/generation'
 
 export const runtime = 'nodejs'
+export const maxDuration = 300
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -61,7 +67,12 @@ export async function POST(request: Request) {
 
   const supabase = createClient(supabaseUrl, supabaseKey)
   const userId = user_id || 'anonymous-user'
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  const baseUrl = new URL(request.url).origin
+  const plan = createGenerationPlan({
+    platform: 'youtube',
+    durationMinutes: Math.min(durationSeconds, SHORTS_MAX_DURATION_SECONDS) / 60,
+    verticalSceneSeconds: 8,
+  })
 
   // ── Step 1: create project + result records ──────────────────────────────
   const { data: projectData, error: projectError } = await supabase
@@ -72,11 +83,10 @@ export async function POST(request: Request) {
       topic,
       description: `YouTube Shorts: ${topic}`,
       video_length_minutes: 1,
-      youtube_clip_duration: durationSeconds,
+      youtube_clip_duration: plan.averageSceneSeconds,
       tiktok_clip_duration: 0,
       tone,
       platform: 'youtube',
-      clip_duration_seconds: Math.floor(durationSeconds / 4),
     })
     .select('id')
     .single()
@@ -106,58 +116,26 @@ export async function POST(request: Request) {
 
   try {
     // ── Step 2: generate script via OpenAI ────────────────────────────────
-    const { numScenes, avgSceneSeconds, totalSeconds, systemAddendum } = buildShortsPromptParams(
+    const prompt = buildContentPrompt({
       topic,
+      description: 'Create this as a native YouTube Short with an immediate hook and mobile-safe text.',
       tone,
-      durationSeconds
-    )
+      plan,
+    })
 
     const client = new OpenAI({ apiKey: openaiKey })
-
-    const systemPrompt = `You are an expert YouTube Shorts creator. Generate ONLY valid JSON (no markdown, no code blocks).
-
-${systemAddendum}
-
-Return this exact JSON structure:
-{
-  "script": {
-    "title": "Compelling Short title (under 60 chars)",
-    "duration": ${Math.round(totalSeconds / 60)},
-    "content": "1-2 sentence hook for the Short",
-    "sections": [
-      {"time": "0:00", "speaker": "Narrator", "text": "Opening hook — stop the scroll"},
-      {"time": "0:15", "speaker": "Narrator", "text": "Main value point"},
-      {"time": "0:45", "speaker": "Narrator", "text": "CTA — like and follow"}
-    ]
-  },
-  "scenes": [<exactly ${numScenes} scenes, each ~${avgSceneSeconds}s, covering 0 to ${totalSeconds}s>],
-  "seo": {
-    "title": "SEO title with main keyword + #Shorts",
-    "description": "Short description with hashtags",
-    "tags": ["Shorts", "YouTubeShorts", "<relevant tags>"]
-  },
-  "thumbnail": {
-    "text": "2-3 bold words",
-    "image_prompt": "Vertical portrait image concept",
-    "emotion": "curiosity"
-  }
-}`
-
-    const userPrompt = `Create a ${totalSeconds}-second YouTube Short about: "${topic}"
-Tone: ${tone}
-Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
 
     let response
     try {
       response = await client.responses.create({
         model: 'gpt-4o-mini',
         input: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user },
         ],
         temperature: 0.7,
-        max_output_tokens: 3000,
-        response_format: { type: 'json_object' },
+        max_output_tokens: 6000,
+        text: { format: buildContentResponseFormat(plan.sceneCount) },
       })
     } catch (err: any) {
       const msg = err?.error?.message || err?.message || 'OpenAI request failed'
@@ -171,14 +149,13 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
         .join('') ??
       ''
 
-    let generatedContent: any
+    let parsedContent: unknown
     try {
-      generatedContent = JSON.parse(outputText.trim())
+      parsedContent = JSON.parse(outputText.trim())
     } catch {
-      const match = outputText.match(/\{[\s\S]*\}/)
-      if (!match) throw new Error('Failed to parse generated content as JSON')
-      generatedContent = JSON.parse(match[0])
+      throw new Error('Failed to parse generated content as JSON')
     }
+    const generatedContent = normalizeGeneratedContent(parsedContent, plan)
 
     // ── Step 3: apply Shorts optimization (9:16, ≤60s) ───────────────────
     const optimization = buildShortsOptimization(
@@ -189,6 +166,9 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
 
     const shortsScenes = optimization.scenes
     const shortsMetadata = optimization.metadata
+    if (shortsScenes.length === 0) {
+      throw new Error('The generated Short did not contain any scenes')
+    }
 
     await supabase
       .from('results')
@@ -216,6 +196,7 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
         voice,
         voiceProvider,
         voiceId,
+        aspectRatio: '9:16',
       }),
     })
 
@@ -228,21 +209,25 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
     const assembleResponse = await fetch(`${baseUrl}/api/assemble-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resultId }),
+      body: JSON.stringify({
+        resultId,
+        options: { aspectRatio: '9:16' },
+      }),
     })
 
-    let assembledVideoUrl: string | null = null
-    if (assembleResponse.ok) {
-      const assembleData = await assembleResponse.json()
-      assembledVideoUrl = assembleData.videoUrl || null
-    } else {
-      console.warn('[shorts/quick-publish] Assembly step failed — video will be available without final assembly')
+    if (!assembleResponse.ok) {
+      const errText = await assembleResponse.text()
+      throw new Error(`Assembly failed: ${errText}`)
     }
+    const assembleData = await assembleResponse.json()
+    const assembledVideoUrl = assembleData.videoUrl || null
+    if (!assembledVideoUrl) throw new Error('Assembly completed without a video URL')
 
     // ── Step 6: upload to YouTube (optional) ────────────────────────────
     let youtubeResult: any = null
     if (autoUpload && accessToken) {
-      const uploadResponse = await fetch(`${baseUrl}/api/youtube-upload`, {
+      const uploadParams = new URLSearchParams({ resultId, accessToken })
+      const uploadResponse = await fetch(`${baseUrl}/api/youtube/upload?${uploadParams}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resultId, accessToken }),

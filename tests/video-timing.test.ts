@@ -14,8 +14,8 @@ test('parseTimestamp rejects malformed values', () => {
   assert.equal(parseTimestamp('1:xx'), null)
 })
 
-test('resolveDuration prefers explicit duration, then timestamps, then fallback', () => {
-  assert.equal(resolveDuration({ duration: 4.6 }, 10), 5)
+test('resolveDuration preserves measured duration, then uses timestamps and fallback', () => {
+  assert.equal(resolveDuration({ duration: 4.6123 }, 10), 4.612)
   assert.equal(resolveDuration({ start_time: '0:05', end_time: '0:11' }, 10), 6)
-  assert.equal(resolveDuration({ start_time: '0:10', end_time: '0:05' }, 7.2), 7)
+  assert.equal(resolveDuration({ start_time: '0:10', end_time: '0:05' }, 7.2), 7.2)
 })

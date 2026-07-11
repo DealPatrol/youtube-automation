@@ -10,8 +10,9 @@ interface Scene {
   end_time?: string
   visual_description?: string
   on_screen_text?: string
-  duration?: string
+  duration?: string | number
   description?: string
+  narration?: string
   assets?: string[]
   camera_movements?: string
   audio_notes?: string
@@ -64,6 +65,18 @@ export default function ScenesTab({ scenes }: ScenesTabProps) {
                 <div className="mb-3 p-3 bg-muted rounded-md">
                   <p className="text-xs font-medium text-muted-foreground mb-1">On-Screen Text:</p>
                   <p className="text-sm text-foreground">{scene.on_screen_text}</p>
+                </div>
+              )}
+
+              {scene.narration && (
+                <div className="mb-3 rounded-md border border-border bg-background p-3">
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium text-muted-foreground">Voiceover:</p>
+                    <span className="text-xs text-muted-foreground">
+                      {scene.narration.trim().split(/\s+/).length} words
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-foreground">{scene.narration}</p>
                 </div>
               )}
 

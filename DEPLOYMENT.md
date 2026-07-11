@@ -5,17 +5,24 @@ This repo currently has three deployable surfaces:
 - `FastAPI` service in `api/` for assembly and storage-heavy work
 - `Python` workers in `workers/` for rendering and upload jobs
 
-## Reality check
+## Recommended deployment: Render
 
-The repository is not a single-click production deployment yet. In particular:
-- the Next.js app can run on its own, but some video assembly features expect ffmpeg or a reachable `FASTAPI_URL` / `VIDEO_ASSEMBLY_URL`
-- the Docker compose stack is for local or single-host use, not hardened multi-tenant production
-- `render.yaml` is incomplete and should not be treated as a full deployment manifest
+The root `render.yaml` defines a complete persistent Node web service. This avoids serverless
+function time limits and runs the bundled FFmpeg binary in the same service as the app.
 
-## Recommended baseline
+1. In Render, create a Blueprint from this repository.
+2. Supply the environment variables marked `sync: false`.
+3. Deploy the Blueprint.
+4. Add the deployed callback URL to Google OAuth:
+   `https://<service>.onrender.com/api/auth/youtube/callback`.
+
+Render automatically supplies `RENDER_EXTERNAL_URL`, so `NEXTAUTH_URL` is optional unless a
+custom domain should be used for OAuth callbacks.
+
+## Local baseline
 
 ### Frontend / app routes
-Deploy the Next.js app separately using Node 20+.
+Run the Next.js app using Node 22+.
 
 ```bash
 npm ci
@@ -41,18 +48,20 @@ This brings up:
 
 ## Production shape
 
-A more realistic production setup is:
-1. Next.js app on Vercel, Render, Fly.io, or a Node host
-2. Managed Postgres
-3. Managed Redis
-4. Dedicated Python worker service with ffmpeg installed
-5. Supabase storage bucket for rendered assets
+The default production flow is:
+1. Next.js app and video assembly on a persistent Render Node service
+2. Supabase Postgres and Storage
+3. OpenAI for scripts and voiceover
+4. fal.ai for scene images or video clips
+
+The separate FastAPI and worker services remain optional for higher-volume rendering.
 
 ### Environment mapping
 
 At minimum, production should provide:
-- app core: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `NEXTAUTH_URL`
-- media routes: `FAL_KEY`, plus either `FASTAPI_URL` or `VIDEO_ASSEMBLY_URL`
+- app core: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`
+- media routes: `FAL_KEY`
+- public URL: automatically provided by Render; set `NEXTAUTH_URL` only for a custom domain
 - YouTube: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`
 - workers/api: `DATABASE_URL`, `REDIS_URL`
 
@@ -88,13 +97,12 @@ pip install -r requirements.txt
 python video_renderer.py
 ```
 
-## Known gaps and risks
+## Operational notes
 
-- No complete CI pipeline is defined in the repo yet.
-- No production-ready secrets management or rotation guidance is checked in.
-- Worker orchestration is still fairly ad hoc.
-- `tts-worker` is referenced in `docker-compose.yml`, but the corresponding script should be validated before relying on it in production.
-- `render.yaml` should be replaced with a real multi-service manifest before using Render seriously.
+- Use at least a persistent paid Render instance for reliable long-video rendering; free instances
+  can sleep and have tighter memory limits.
+- Keep secrets in Render environment settings, never in `render.yaml`.
+- FastAPI and Redis workers are optional and are not required by the default video flow.
 
 ## Pre-release checklist
 

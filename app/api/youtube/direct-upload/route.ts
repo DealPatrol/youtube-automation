@@ -1,8 +1,7 @@
 import { google } from 'googleapis'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import formidable from 'formidable'
-import fs from 'fs'
+import { getPublicAppUrl } from '@/lib/config/app-url'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -17,34 +16,6 @@ if (supabaseUrl && supabaseKey) {
   }
 } else {
   console.warn('[API] Supabase credentials not configured')
-}
-
-// Parse multipart form data
-async function parseFormData(request: NextRequest) {
-  const buffer = await request.arrayBuffer()
-  const contentType = request.headers.get('content-type') || ''
-  
-  return new Promise((resolve, reject) => {
-    const form = new formidable.IncomingForm()
-    const fakeReq = {
-      headers: {
-        'content-type': contentType,
-        'content-length': buffer.byteLength.toString(),
-      },
-      on: (event: string, handler: Function) => {
-        if (event === 'data') {
-          handler(Buffer.from(buffer))
-        } else if (event === 'end') {
-          handler()
-        }
-      },
-    } as any
-
-    form.parse(fakeReq, (err, fields, files) => {
-      if (err) reject(err)
-      else resolve({ fields, files })
-    })
-  })
 }
 
 export async function POST(request: NextRequest) {
@@ -62,14 +33,6 @@ export async function POST(request: NextRequest) {
       console.error('[API] Missing YOUTUBE_CLIENT_SECRET environment variable')
       return NextResponse.json(
         { error: 'Server configuration error: Missing YouTube Client Secret' },
-        { status: 500 }
-      )
-    }
-
-    if (!process.env.NEXTAUTH_URL) {
-      console.error('[API] Missing NEXTAUTH_URL environment variable')
-      return NextResponse.json(
-        { error: 'Server configuration error: Missing authentication URL' },
         { status: 500 }
       )
     }
@@ -93,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Get user's YouTube refresh token from Supabase
     const { data: result, error: dbError } = await supabase
       .from('results')
-      .select('youtube_refresh_token')
+      .select('youtube_refresh_token, project_id')
       .eq('id', resultId)
       .single()
 
@@ -109,7 +72,7 @@ export async function POST(request: NextRequest) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.YOUTUBE_CLIENT_ID,
       process.env.YOUTUBE_CLIENT_SECRET,
-      `${process.env.NEXTAUTH_URL}/api/auth/youtube/callback`
+      `${getPublicAppUrl()}/api/auth/youtube/callback`
     )
 
     oauth2Client.setCredentials({
@@ -140,7 +103,7 @@ export async function POST(request: NextRequest) {
     // Upload to YouTube
     const response = await youtube.videos.insert(
       {
-        part: 'snippet,status',
+        part: ['snippet', 'status'],
         requestBody: {
           snippet: {
             title: title || 'Untitled Video',
@@ -154,12 +117,10 @@ export async function POST(request: NextRequest) {
             publishAt: publishAt || undefined,
           },
         },
-      },
-      {
         media: {
           body: Buffer.from(buffer),
         },
-      } as any
+      }
     )
 
     const youtubeVideoId = response.data.id
@@ -179,6 +140,19 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('[API] Failed to update result:', updateError)
+    }
+    if (publishAt && result.project_id) {
+      const { error: scheduleError } = await supabase
+        .from('projects')
+        .update({
+          status: 'scheduled',
+          scheduled_for: publishAt,
+          youtube_video_id: youtubeVideoId,
+        })
+        .eq('id', result.project_id)
+      if (scheduleError) {
+        console.error('[API] Failed to update project schedule:', scheduleError)
+      }
     }
 
     return NextResponse.json({

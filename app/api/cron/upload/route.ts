@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getPublicAppUrl } from '@/lib/config/app-url'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -62,13 +63,14 @@ export async function GET(request: Request) {
         const tags = seo.tags || []
 
         // Upload to YouTube (call our YouTube upload API)
-        const uploadResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/youtube-upload`, {
+        const uploadResponse = await fetch(`${getPublicAppUrl()}/api/youtube-upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title,
             description,
             tags,
+            resultId: result.id,
             accessToken: process.env.YOUTUBE_ACCESS_TOKEN, // Service account token
           }),
         })
