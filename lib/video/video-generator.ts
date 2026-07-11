@@ -33,10 +33,39 @@ export interface VoiceOptions {
   voiceId?: string
   baseUrl?: string
   aspectRatio?: '16:9' | '9:16'
+  resultId?: string
+  voiceInstructions?: string
 }
 
 function resolveBaseUrl(baseUrl?: string): string {
   return (baseUrl || getPublicAppUrl()).replace(/\/$/, '')
+}
+
+function configuredConcurrency(envName: string, fallback: number, maximum: number): number {
+  const value = Number(process.env[envName])
+  return Number.isFinite(value) ? Math.min(maximum, Math.max(1, Math.floor(value))) : fallback
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      results[index] = await worker(items[index], index)
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker())
+  )
+  return results
 }
 
 /**
@@ -46,18 +75,13 @@ export async function generateSceneAudio(
   scenes: VideoScene[],
   options: VoiceOptions = {}
 ): Promise<VideoScene[]> {
-  const updatedScenes = []
-  const { provider, voice = 'alloy', voiceId, baseUrl } = options
+  const { provider, voice = 'alloy', voiceId, baseUrl, resultId, voiceInstructions } = options
+  const concurrency = configuredConcurrency('MEDIA_GENERATION_CONCURRENCY', 3, 5)
 
-  for (const scene of scenes) {
-    try {
-      // Skip if no narration text
-      if (!scene.narration) {
-        console.log(`[v0] Scene ${scene.id} has no narration, skipping audio generation`)
-        updatedScenes.push(scene)
-        continue
+  return mapWithConcurrency(scenes, concurrency, async (scene) => {
+      if (!scene.narration?.trim()) {
+        throw new Error(`Scene ${scene.id} is missing narration`)
       }
-
       console.log(`[v0] Generating voiceover for scene ${scene.id}: ${scene.title}`)
       
       const response = await fetch(`${resolveBaseUrl(baseUrl)}/api/generate-audio`, {
@@ -69,31 +93,30 @@ export async function generateSceneAudio(
           voice,
           voiceProvider: provider,
           voiceId,
+          resultId,
+          voiceInstructions,
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to generate audio for scene ${scene.id}`)
+        const errorBody = await response.text()
+        throw new Error(`Failed to generate audio for scene ${scene.id}: ${errorBody}`)
       }
 
       const data = await response.json()
-      
-      updatedScenes.push({
+      if (!data.audioUrl || !Number.isFinite(data.duration) || data.duration <= 0) {
+        throw new Error(`Voiceover service returned invalid media for scene ${scene.id}`)
+      }
+
+      const updatedScene = {
         ...scene,
         audio_url: data.audioUrl,
-        duration: typeof data.duration === 'number' && data.duration > 0 ? data.duration : scene.duration,
-      })
+        duration: data.duration,
+      }
 
       console.log(`[v0] Scene ${scene.id} voiceover generated`)
-    } catch (error) {
-      console.error(`[v0] Error generating audio for scene ${scene.id}:`, error)
-      
-      // Continue without audio if generation fails
-      updatedScenes.push(scene)
-    }
-  }
-
-  return updatedScenes
+      return updatedScene
+  })
 }
 
 /**
@@ -208,11 +231,11 @@ export async function generateSceneImages(
   scenes: VideoScene[],
   options: Pick<VoiceOptions, 'baseUrl' | 'aspectRatio'> = {}
 ): Promise<VideoScene[]> {
-  const updatedScenes = []
   const baseUrl = resolveBaseUrl(options.baseUrl)
   const aspectRatio = options.aspectRatio || '16:9'
+  const concurrency = configuredConcurrency('MEDIA_GENERATION_CONCURRENCY', 3, 5)
 
-  for (const scene of scenes) {
+  return mapWithConcurrency(scenes, concurrency, async (scene) => {
     try {
       console.log(`[v0] Generating image for scene ${scene.id}: ${scene.title}`)
       
@@ -230,13 +253,14 @@ export async function generateSceneImages(
       }
 
       const data = await response.json()
-      
-      updatedScenes.push({
+      if (!data.imageUrl) throw new Error(`Image service returned no URL for scene ${scene.id}`)
+      const updatedScene = {
         ...scene,
         image_url: data.imageUrl,
-      })
+      }
 
       console.log(`[v0] Scene ${scene.id} image generated: ${data.imageUrl}`)
+      return updatedScene
     } catch (error) {
       console.error(`[v0] Error generating image for scene ${scene.id}:`, error)
 
@@ -244,11 +268,10 @@ export async function generateSceneImages(
         const { getStockImageUrl } = await import('@/lib/video/stock-media')
         const stockImage = await getStockImageUrl(scene.visual_description, aspectRatio)
         if (stockImage) {
-          updatedScenes.push({
+          return {
             ...scene,
             image_url: stockImage,
-          })
-          continue
+          }
         }
       } catch (stockError) {
         console.warn('[v0] Stock image fallback failed:', stockError)
@@ -256,9 +279,7 @@ export async function generateSceneImages(
 
       throw new Error(`Unable to generate an image for scene ${scene.id}`)
     }
-  }
-
-  return updatedScenes
+  })
 }
 
 /**

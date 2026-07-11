@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fal } from '@fal-ai/client'
+import { createClient } from '@supabase/supabase-js'
 
 const FAL_KEY = process.env.FAL_KEY
 
@@ -13,11 +14,22 @@ interface ThumbnailRequest {
   text: string
   imagePrompt: string
   emotion?: string
+  aspectRatio?: '16:9' | '9:16'
+  resultId?: string
 }
+
+export const runtime = 'nodejs'
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   try {
-    const { text, imagePrompt, emotion }: ThumbnailRequest = await request.json()
+    const {
+      text,
+      imagePrompt,
+      emotion,
+      aspectRatio = '16:9',
+      resultId,
+    }: ThumbnailRequest = await request.json()
 
     if (!imagePrompt) {
       return NextResponse.json(
@@ -34,22 +46,22 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log('[API] Generating YouTube thumbnail:', imagePrompt.substring(0, 100))
+    console.log('[API] Generating cover image:', imagePrompt.substring(0, 100))
 
-    // Enhanced prompt for YouTube thumbnail style
-    const thumbnailPrompt = `YouTube thumbnail style image: ${imagePrompt}. 
+    const vertical = aspectRatio === '9:16'
+    const thumbnailPrompt = `${vertical ? 'Vertical social cover' : 'YouTube thumbnail'} style image: ${imagePrompt}. 
 High quality, vibrant colors, attention-grabbing composition, professional lighting.
 ${emotion ? `Emotion: ${emotion}.` : ''}
-16:9 aspect ratio, bold visual elements, clear focus point.
-${text ? `Text overlay will read: "${text}"` : ''}`
+${aspectRatio} aspect ratio, bold visual elements, clear focus point.
+Do not draw letters or words. ${text ? `Leave uncluttered negative space for the later text overlay "${text}".` : ''}`
 
     // Use fal.ai Flux for high-quality thumbnail generation
     const result = await fal.subscribe('fal-ai/flux/dev', {
       input: {
         prompt: thumbnailPrompt,
         image_size: {
-          width: 1280,
-          height: 720,
+          width: vertical ? 720 : 1280,
+          height: vertical ? 1280 : 720,
         },
         num_images: 1,
       },
@@ -68,6 +80,19 @@ ${text ? `Text overlay will read: "${text}"` : ''}`
     }
 
     const thumbnailUrl = result.data.images[0].url
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (resultId && supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      const { error: updateError } = await supabase
+        .from('results')
+        .update({ thumbnail_url: thumbnailUrl })
+        .eq('id', resultId)
+      if (updateError) {
+        console.warn('[API] Could not persist thumbnail URL:', updateError.message)
+      }
+    }
 
     console.log('[API] Thumbnail generated:', thumbnailUrl)
 

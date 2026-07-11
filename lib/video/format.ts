@@ -17,10 +17,16 @@ export function resolveVideoFormat(aspectRatio?: string | null): VideoFormat {
 
 export function inferVideoAspectRatio(
   requestedAspectRatio: string | undefined,
-  videoLengthMinutes: number | null | undefined
+  videoLengthMinutes: number | null | undefined,
+  platform?: string | null
 ): VideoAspectRatio {
   if (requestedAspectRatio === '9:16' || requestedAspectRatio === '16:9') {
     return requestedAspectRatio
+  }
+
+  const normalizedPlatform = platform?.toLowerCase()
+  if (normalizedPlatform === 'tiktok' || normalizedPlatform === 'instagram') {
+    return '9:16'
   }
 
   return typeof videoLengthMinutes === 'number' && videoLengthMinutes <= 1 ? '9:16' : '16:9'

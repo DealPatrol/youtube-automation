@@ -12,6 +12,8 @@ test('infers vertical output for one-minute projects', () => {
   assert.equal(inferVideoAspectRatio(undefined, 1), '9:16')
   assert.equal(inferVideoAspectRatio(undefined, 10), '16:9')
   assert.equal(inferVideoAspectRatio('16:9', 1), '16:9')
+  assert.equal(inferVideoAspectRatio(undefined, 3, 'tiktok'), '9:16')
+  assert.equal(inferVideoAspectRatio(undefined, 3, 'instagram'), '9:16')
 })
 
 test('builds correctly sized FFmpeg filters for shorts and long videos', () => {

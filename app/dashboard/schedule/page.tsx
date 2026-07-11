@@ -16,6 +16,7 @@ import {
   Trash2,
   Edit,
 } from 'lucide-react'
+import { getAuthUserId, useAuth } from '@/lib/auth/auth-context'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -26,27 +27,40 @@ interface ScheduledVideo {
   title: string
   scheduled_for: string
   status: string
+  result_id?: string
 }
 
 export default function SchedulePage() {
+  const { user, loading: authLoading } = useAuth()
   const [scheduledVideos, setScheduledVideos] = useState<ScheduledVideo[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    loadScheduledVideos()
-  }, [])
+    if (!authLoading && user) loadScheduledVideos()
+  }, [user, authLoading])
 
   async function loadScheduledVideos() {
     try {
       if (supabase) {
+        const userId = getAuthUserId(user)
+        if (!userId) return
         const { data, error } = await supabase
           .from('projects')
-          .select('id, title, scheduled_for, status')
+          .select('id, title, scheduled_for, status, results(id, created_at)')
+          .eq('user_id', userId)
           .eq('status', 'scheduled')
           .order('scheduled_for', { ascending: true })
 
         if (error) throw error
-        setScheduledVideos(data || [])
+        setScheduledVideos(
+          (data || []).map((project) => ({
+            ...project,
+            result_id: [...(project.results || [])].sort(
+              (a, b) =>
+                new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+            )[0]?.id,
+          }))
+        )
       }
     } catch (error) {
       console.error('Failed to load scheduled videos:', error)
@@ -154,8 +168,8 @@ export default function SchedulePage() {
                   <Clock className="w-6 h-6 text-green-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">Every 6h</p>
-                  <p className="text-sm text-muted-foreground">Upload Frequency</p>
+                  <p className="text-2xl font-bold">YouTube</p>
+                  <p className="text-sm text-muted-foreground">Publishing destination</p>
                 </div>
               </div>
             </CardContent>
@@ -168,8 +182,8 @@ export default function SchedulePage() {
                   <Video className="w-6 h-6 text-blue-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">Auto</p>
-                  <p className="text-sm text-muted-foreground">Posting Enabled</p>
+                  <p className="text-2xl font-bold">{scheduledVideos.length > 0 ? 'Ready' : 'Idle'}</p>
+                  <p className="text-sm text-muted-foreground">Schedule status</p>
                 </div>
               </div>
             </CardContent>
@@ -233,7 +247,7 @@ export default function SchedulePage() {
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge variant="secondary">Scheduled</Badge>
-                              <Link href={`/results/${video.id}`}>
+                              <Link href={video.result_id ? `/results/${video.result_id}` : '/'}>
                                 <Button variant="ghost" size="sm">
                                   <Edit className="w-4 h-4" />
                                 </Button>

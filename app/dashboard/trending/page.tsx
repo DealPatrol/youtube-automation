@@ -41,6 +41,7 @@ export default function TrendingPage() {
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [refreshing, setRefreshing] = useState(false)
+  const [source, setSource] = useState<'x-api' | 'mock' | null>(null)
 
   const categories = [
     { id: 'all', label: 'All Topics' },
@@ -59,6 +60,7 @@ export default function TrendingPage() {
       
       if (data.success) {
         setTrends(data.trends)
+        setSource(data.source)
       }
     } catch (error) {
       console.error('[Trending] Error fetching trends:', error)
@@ -77,12 +79,11 @@ export default function TrendingPage() {
     fetchTrends()
   }
 
-  const handleCreateVideo = (trend: TrendingTopic) => {
-    // Navigate to home with pre-filled topic
+  const handleCreateVideo = (trend: TrendingTopic, platform: 'youtube' | 'tiktok') => {
     const params = new URLSearchParams({
       topic: trend.name,
-      description: trend.description,
-      platform: 'youtube'
+      description: `${trend.description}\n\nAudience language and trend context: ${trend.topTweet}\nRelevant hashtags: ${trend.hashtags.join(' ')}`,
+      platform,
     })
     router.push(`/?${params.toString()}`)
   }
@@ -124,8 +125,13 @@ export default function TrendingPage() {
                 Trending on X
               </h1>
               <p className="text-muted-foreground text-lg">
-                Discover trending topics to create viral video content
+                Use current audience conversations as research for timely video ideas
               </p>
+              {source === 'mock' && (
+                <Badge variant="outline" className="mt-2">
+                  Sample data — connect X for live research
+                </Badge>
+              )}
             </div>
             <Button
               onClick={handleRefresh}
@@ -253,11 +259,20 @@ export default function TrendingPage() {
                   {/* Action Buttons */}
                   <div className="flex-shrink-0 flex flex-col gap-2">
                     <Button
-                      onClick={() => handleCreateVideo(trend)}
+                      onClick={() => handleCreateVideo(trend, 'youtube')}
                       className="gap-2 bg-primary hover:bg-primary/90"
                     >
                       <Sparkles className="w-4 h-4" />
-                      Create Video
+                      YouTube
+                    </Button>
+                    <Button
+                      onClick={() => handleCreateVideo(trend, 'tiktok')}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 bg-transparent"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      TikTok
                     </Button>
                     <Button
                       variant="outline"

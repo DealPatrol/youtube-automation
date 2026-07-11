@@ -16,7 +16,6 @@ export default function GeneratorPage() {
   const [topic, setTopic] = useState('')
   const [description, setDescription] = useState('')
   const [videoLength, setVideoLength] = useState('10')
-  const [clipDuration, setClipDuration] = useState('15')
   const [tone, setTone] = useState('neutral')
   const [platform, setPlatform] = useState('youtube')
   const [loading, setLoading] = useState(false)
@@ -56,7 +55,7 @@ export default function GeneratorPage() {
         body: JSON.stringify({
           topic,
           description,
-          video_length_minutes: parseInt(videoLength),
+          video_length_minutes: parseFloat(videoLength),
           youtube_clip_duration: parseInt(youtubeClipDuration),
           tiktok_clip_duration: parseInt(tiktokClipDuration),
           tone,
@@ -275,12 +274,23 @@ export default function GeneratorPage() {
                         disabled={loading}
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <option value="5">5 min</option>
-                        <option value="8">8 min</option>
-                        <option value="10">10 min</option>
-                        <option value="12">12 min</option>
-                        <option value="15">15 min</option>
-                        <option value="20">20 min</option>
+                        {platform === 'tiktok' || platform === 'instagram' ? (
+                          <>
+                            <option value="0.5">30 sec</option>
+                            <option value="1">60 sec</option>
+                            <option value="1.5">90 sec</option>
+                            <option value="3">3 min</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="5">5 min</option>
+                            <option value="8">8 min</option>
+                            <option value="10">10 min</option>
+                            <option value="12">12 min</option>
+                            <option value="15">15 min</option>
+                            <option value="20">20 min</option>
+                          </>
+                        )}
                       </select>
                     </div>
 
@@ -291,7 +301,13 @@ export default function GeneratorPage() {
                       <select
                         id="platform"
                         value={platform}
-                        onChange={(e) => setPlatform(e.target.value)}
+                        onChange={(e) => {
+                          const nextPlatform = e.target.value
+                          const vertical = nextPlatform === 'tiktok' || nextPlatform === 'instagram'
+                          setPlatform(nextPlatform)
+                          if (vertical && Number(videoLength) > 3) setVideoLength('1')
+                          if (!vertical && Number(videoLength) < 5) setVideoLength('10')
+                        }}
                         disabled={loading}
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -323,7 +339,9 @@ export default function GeneratorPage() {
                         <option value="45">45 seconds</option>
                         <option value="60">60 seconds</option>
                       </select>
-                      <p className="text-xs text-muted-foreground">Auto aligns scene timing with narration.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Final timing follows the measured voiceover duration.
+                      </p>
                     </div>
 
                     <div className="space-y-2">
@@ -366,6 +384,10 @@ export default function GeneratorPage() {
                       <option value="dramatic">Dramatic</option>
                       <option value="humorous">Humorous</option>
                       <option value="educational">Educational</option>
+                      <option value="energetic">Energetic</option>
+                      <option value="authoritative">Authoritative</option>
+                      <option value="empathetic">Empathetic</option>
+                      <option value="conversational">Conversational</option>
                     </select>
                   </div>
 

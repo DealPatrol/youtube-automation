@@ -7,6 +7,7 @@ import * as path from 'path'
 import * as os from 'os'
 
 import { resolveDuration } from '@/lib/video/timing'
+import { ensureFfmpegAvailable, resolveFfmpegPath } from '@/lib/video/ffmpeg'
 import {
   buildVideoFilter,
   inferVideoAspectRatio,
@@ -335,19 +336,6 @@ function createVttFromScenes(scenes: SceneAsset[], defaultDuration: number): str
   return `WEBVTT\n\n${cues.join('\n\n')}\n`
 }
 
-function resolveFfmpegPath(): string {
-  const bundledPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg')
-  return fs.existsSync(bundledPath) ? bundledPath : 'ffmpeg'
-}
-
-async function ensureFfmpegAvailable() {
-  try {
-    await execFileAsync(resolveFfmpegPath(), ['-version'], { maxBuffer: 1024 * 1024 })
-  } catch (error) {
-    throw new Error('FFmpeg is not installed or not available in PATH')
-  }
-}
-
 async function transcribeAudioToWords(
   audioPath: string,
   apiKey: string
@@ -535,7 +523,8 @@ export async function POST(request: Request) {
     const requestUseWhisperCaptions = Boolean(requestOptions.useWhisperCaptions)
     const aspectRatio = inferVideoAspectRatio(
       requestOptions.aspectRatio,
-      project?.video_length_minutes
+      project?.video_length_minutes,
+      project?.platform
     )
     const format = resolveVideoFormat(aspectRatio)
 

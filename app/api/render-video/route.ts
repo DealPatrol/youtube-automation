@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { generateSceneVideos, generateSceneImages, generateSceneAudio } from '@/lib/video/video-generator'
 import { inferVideoAspectRatio } from '@/lib/video/format'
+import { buildVoiceDirection } from '@/lib/content/generation'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
       try {
         const { data, error: dbError } = await supabase
           .from('results')
-          .select('*, projects(video_length_minutes, youtube_clip_duration, tiktok_clip_duration, platform)')
+          .select('*, projects(video_length_minutes, youtube_clip_duration, tiktok_clip_duration, platform, tone)')
           .eq('id', resultId)
           .single()
 
@@ -89,7 +90,11 @@ export async function POST(request: Request) {
     }
 
     const project = Array.isArray(result.projects) ? result.projects[0] : result.projects
-    const aspectRatio = inferVideoAspectRatio(requestedAspectRatio, project?.video_length_minutes)
+    const aspectRatio = inferVideoAspectRatio(
+      requestedAspectRatio,
+      project?.video_length_minutes,
+      project?.platform
+    )
     const configuredDuration =
       project?.platform === 'tiktok'
         ? project?.tiktok_clip_duration
@@ -109,9 +114,36 @@ export async function POST(request: Request) {
     let successMessage
 
     if (mode === 'videos') {
-      console.log(`[API] Generating ${clipDuration}s AI video clips for scenes (Kling Video)...`)
-      scenesWithContent = await generateSceneVideos(scenes, clipDuration, { baseUrl, aspectRatio })
-      successMessage = `AI video clips (${clipDuration}s each) generated successfully`
+      const configuredMax = Number(process.env.MAX_AI_VIDEO_SCENES || 8)
+      const maxVideoScenes = Number.isFinite(configuredMax)
+        ? Math.max(1, Math.min(scenes.length, Math.floor(configuredMax)))
+        : Math.min(scenes.length, 8)
+      const selectedIndexes = new Set<number>()
+      for (let index = 0; index < maxVideoScenes; index += 1) {
+        selectedIndexes.add(
+          maxVideoScenes === 1
+            ? 0
+            : Math.round((index * (scenes.length - 1)) / (maxVideoScenes - 1))
+        )
+      }
+      const videoScenes = scenes.filter((_: unknown, index: number) => selectedIndexes.has(index))
+      const imageScenes = scenes.filter((_: unknown, index: number) => !selectedIndexes.has(index))
+
+      console.log(
+        `[API] Generating ${videoScenes.length} AI motion clips and ${imageScenes.length} supporting images`
+      )
+      const [generatedVideos, generatedImages] = await Promise.all([
+        generateSceneVideos(videoScenes, clipDuration, { baseUrl, aspectRatio }),
+        generateSceneImages(imageScenes, { baseUrl, aspectRatio }),
+      ])
+      const generatedById = new Map(
+        [...generatedVideos, ...generatedImages].map((scene) => [scene.id, scene])
+      )
+      scenesWithContent = scenes.map((scene: { id: number }) => generatedById.get(scene.id))
+      if (scenesWithContent.some((scene: unknown) => !scene)) {
+        throw new Error('One or more generated scenes could not be matched to the script')
+      }
+      successMessage = `Hybrid render created ${videoScenes.length} motion clips and ${imageScenes.length} images`
     } else {
       console.log('[API] Generating static images for scenes (faster)...')
       scenesWithContent = await generateSceneImages(scenes, { baseUrl, aspectRatio })
@@ -126,6 +158,8 @@ export async function POST(request: Request) {
       voiceId,
       baseUrl,
       aspectRatio,
+      resultId,
+      voiceInstructions: buildVoiceDirection(project?.tone, project?.platform),
     })
     console.log('[API] Voiceover generation complete')
 

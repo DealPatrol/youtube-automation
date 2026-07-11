@@ -43,6 +43,7 @@ interface Project {
   scheduled_for?: string
   video_url?: string
   views?: number
+  result_id?: string
 }
 
 interface UserStats {
@@ -73,44 +74,14 @@ type EnvStatus = {
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: '1',
-      title: 'How To Start A Faceless YouTube Channel',
-      topic: 'YouTube',
-      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      status: 'published',
-      scheduled_for: undefined,
-      video_url: 'https://example.com/video1.mp4',
-      views: 1250,
-    },
-    {
-      id: '2',
-      title: 'AI Tools That Changed My Life',
-      topic: 'AI',
-      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      status: 'scheduled',
-      scheduled_for: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      video_url: 'https://example.com/video2.mp4',
-      views: 0,
-    },
-    {
-      id: '3',
-      title: 'Top 5 Stock Footage Websites',
-      topic: 'Resources',
-      created_at: new Date().toISOString(),
-      status: 'draft',
-      video_url: undefined,
-      views: 0,
-    }
-  ])
-  const [loading, setLoading] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [stats, setStats] = useState<UserStats>({
-    videosCreated: 3,
-    videosPublished: 1,
-    totalViews: 1250,
-    scheduledVideos: 1,
+    videosCreated: 0,
+    videosPublished: 0,
+    totalViews: 0,
+    scheduledVideos: 0,
   })
   const [planLimits, setPlanLimits] = useState<PlanLimits>({
     plan: 'pro',
@@ -135,11 +106,12 @@ export default function DashboardPage() {
 
   async function loadDashboardData() {
     try {
+      setLoading(true)
       // Load projects from Supabase
       if (supabase && user) {
         const { data: projectsData, error: projectsError } = await supabase
           .from('projects')
-          .select('*')
+          .select('*, results(id, video_url, created_at)')
           .eq('user_id', getAuthUserId(user))
           .order('created_at', { ascending: false })
           .limit(10)
@@ -147,16 +119,23 @@ export default function DashboardPage() {
         if (projectsError) throw projectsError
 
         setProjects(
-          projectsData?.map((p) => ({
-            id: p.id,
-            title: p.title || p.topic,
-            topic: p.topic,
-            created_at: p.created_at,
-            status: p.status || 'draft',
-            scheduled_for: p.scheduled_for,
-            video_url: p.video_url,
-            views: p.views || 0,
-          })) || []
+          projectsData?.map((p) => {
+            const latestResult = [...(p.results || [])].sort(
+              (a, b) =>
+                new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+            )[0]
+            return {
+              id: p.id,
+              result_id: latestResult?.id,
+              title: p.title || p.topic,
+              topic: p.topic,
+              created_at: p.created_at,
+              status: p.status || 'draft',
+              scheduled_for: p.scheduled_for,
+              video_url: latestResult?.video_url || p.video_url,
+              views: p.views || 0,
+            }
+          }) || []
         )
 
         // Calculate stats
@@ -410,7 +389,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-3">
                   {projects.map((project) => (
-                    <Link key={project.id} href={`/results/${project.id}`}>
+                    <Link key={project.id} href={project.result_id ? `/results/${project.result_id}` : '/'}>
                       <Card className="hover:shadow-md transition-shadow cursor-pointer">
                         <CardContent className="pt-4 pb-4">
                           <div className="flex items-center justify-between">

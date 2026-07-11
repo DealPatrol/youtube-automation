@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Get user's YouTube refresh token from Supabase
     const { data: result, error: dbError } = await supabase
       .from('results')
-      .select('youtube_refresh_token')
+      .select('youtube_refresh_token, project_id')
       .eq('id', resultId)
       .single()
 
@@ -140,6 +140,19 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('[API] Failed to update result:', updateError)
+    }
+    if (publishAt && result.project_id) {
+      const { error: scheduleError } = await supabase
+        .from('projects')
+        .update({
+          status: 'scheduled',
+          scheduled_for: publishAt,
+          youtube_video_id: youtubeVideoId,
+        })
+        .eq('id', result.project_id)
+      if (scheduleError) {
+        console.error('[API] Failed to update project schedule:', scheduleError)
+      }
     }
 
     return NextResponse.json({
