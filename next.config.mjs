@@ -9,6 +9,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  outputFileTracingIncludes: {
+    '/api/assemble-video': ['./node_modules/ffmpeg-static/ffmpeg'],
+  },
   turbopack: {
     root: __dirname,
   },

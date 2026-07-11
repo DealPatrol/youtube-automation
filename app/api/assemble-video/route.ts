@@ -328,7 +328,7 @@ function createVttFromScenes(scenes: SceneAsset[], defaultDuration: number): str
 }
 
 function resolveFfmpegPath(): string {
-  const bundledPath = require.resolve('ffmpeg-static/ffmpeg')
+  const bundledPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg')
   return fs.existsSync(bundledPath) ? bundledPath : 'ffmpeg'
 }
 
