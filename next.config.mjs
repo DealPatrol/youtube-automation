@@ -6,11 +6,11 @@ const __dirname = path.dirname(__filename)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
+  },
+  outputFileTracingIncludes: {
+    '/api/assemble-video': ['./node_modules/ffmpeg-static/ffmpeg'],
   },
   turbopack: {
     root: __dirname,

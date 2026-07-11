@@ -25,10 +25,21 @@ export async function GET(request: Request) {
       )
     }
 
-    if (error) {
+    const { searchParams } = new URL(request.url)
+    const authorizationError = searchParams.get('error')
+    const code = searchParams.get('code')
+    const resultId = searchParams.get('state')
+    const clientId = process.env.YOUTUBE_CLIENT_ID
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
+
+    if (!clientId || !clientSecret) {
+      throw new Error('YouTube OAuth is not configured')
+    }
+
+    if (authorizationError) {
       const redirectUrl = resultId && resultId !== 'unknown' 
-        ? `/results/${resultId}?youtube_error=${encodeURIComponent(error)}`
-        : `/?youtube_error=${encodeURIComponent(error)}`
+        ? `/results/${resultId}?youtube_error=${encodeURIComponent(authorizationError)}`
+        : `/?youtube_error=${encodeURIComponent(authorizationError)}`
       return NextResponse.redirect(new URL(redirectUrl, request.url))
     }
 

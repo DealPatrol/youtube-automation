@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, CheckCircle2, Loader2, PlayCircle, Sparkles, Zap, TrendingUp } from 'lucide-react'
-import { useAuth } from '@/lib/auth/auth-context'
+import { getAuthUserId, useAuth } from '@/lib/auth/auth-context'
 
 export default function GeneratorPage() {
   const router = useRouter()
@@ -61,7 +61,7 @@ export default function GeneratorPage() {
           tiktok_clip_duration: parseInt(tiktokClipDuration),
           tone,
           platform,
-          user_id: user?.uid,
+          user_id: getAuthUserId(user),
         }),
       })
 

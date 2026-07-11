@@ -24,6 +24,7 @@ export async function GET(request: Request) {
         { status: 500 }
       )
     }
+    const { searchParams } = new URL(request.url)
     const projectId = searchParams.get('projectId')
 
     if (!projectId) {

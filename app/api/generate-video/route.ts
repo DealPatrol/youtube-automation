@@ -12,7 +12,7 @@ if (FAL_KEY) {
 
 export async function POST(request: Request) {
   try {
-    const { prompt, sceneId, duration = 5 } = await request.json()
+    const { prompt, sceneId, duration = 5, aspectRatio = '16:9' } = await request.json()
 
     if (!prompt) {
       return NextResponse.json(
@@ -29,13 +29,16 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log(`[API] Generating ${duration}s video for scene ${sceneId || 'unknown'}:`, prompt.substring(0, 100))
+    const supportedDuration = Number(duration) >= 10 ? '10' : '5'
+    const supportedAspectRatio = aspectRatio === '9:16' ? '9:16' : '16:9'
+    console.log(`[API] Generating ${supportedDuration}s video for scene ${sceneId || 'unknown'}:`, prompt.substring(0, 100))
 
     // Use fal.subscribe for Kling Video generation with progress tracking
     const result = await fal.subscribe('fal-ai/kling-video/v2.6/pro/text-to-video', {
       input: {
         prompt: prompt,
-        duration: duration,
+        duration: supportedDuration,
+        aspect_ratio: supportedAspectRatio,
       },
       logs: true,
       onQueueUpdate: (update) => {

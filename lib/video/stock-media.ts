@@ -4,10 +4,17 @@ function buildHeaders() {
   return PEXELS_API_KEY ? { Authorization: PEXELS_API_KEY } : {}
 }
 
-export async function getStockVideoUrl(query: string): Promise<string | null> {
+function orientationFor(aspectRatio: '16:9' | '9:16' = '16:9') {
+  return aspectRatio === '9:16' ? 'portrait' : 'landscape'
+}
+
+export async function getStockVideoUrl(
+  query: string,
+  aspectRatio: '16:9' | '9:16' = '16:9'
+): Promise<string | null> {
   if (!PEXELS_API_KEY || !query.trim()) return null
 
-  const url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`
+  const url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=1&orientation=${orientationFor(aspectRatio)}`
   const response = await fetch(url, { headers: buildHeaders() })
   if (!response.ok) {
     console.warn('[Stock] Pexels video search failed:', response.status)
@@ -24,10 +31,13 @@ export async function getStockVideoUrl(query: string): Promise<string | null> {
   return preferred?.link || null
 }
 
-export async function getStockImageUrl(query: string): Promise<string | null> {
+export async function getStockImageUrl(
+  query: string,
+  aspectRatio: '16:9' | '9:16' = '16:9'
+): Promise<string | null> {
   if (!PEXELS_API_KEY || !query.trim()) return null
 
-  const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`
+  const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&orientation=${orientationFor(aspectRatio)}`
   const response = await fetch(url, { headers: buildHeaders() })
   if (!response.ok) {
     console.warn('[Stock] Pexels image search failed:', response.status)

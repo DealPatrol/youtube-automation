@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { generateSceneVideos, generateSceneImages, generateSceneAudio } from '@/lib/video/video-generator'
+import { inferVideoAspectRatio } from '@/lib/video/format'
+
+export const runtime = 'nodejs'
+export const maxDuration = 300
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -26,6 +30,7 @@ export async function POST(request: Request) {
       voice,
       voiceProvider,
       voiceId,
+      aspectRatio: requestedAspectRatio,
     } = await request.json()
     resultId = requestResultId
 
@@ -45,7 +50,7 @@ export async function POST(request: Request) {
       try {
         const { data, error: dbError } = await supabase
           .from('results')
-          .select('*, projects(clip_duration_seconds)')
+          .select('*, projects(video_length_minutes, youtube_clip_duration, tiktok_clip_duration, platform)')
           .eq('id', resultId)
           .single()
 
@@ -83,7 +88,14 @@ export async function POST(request: Request) {
       )
     }
 
-    const clipDuration = result?.projects?.clip_duration_seconds || 5
+    const project = Array.isArray(result.projects) ? result.projects[0] : result.projects
+    const aspectRatio = inferVideoAspectRatio(requestedAspectRatio, project?.video_length_minutes)
+    const configuredDuration =
+      project?.platform === 'tiktok'
+        ? project?.tiktok_clip_duration
+        : project?.youtube_clip_duration
+    const clipDuration = Number(configuredDuration) > 0 ? Number(configuredDuration) : 5
+    const baseUrl = new URL(request.url).origin
 
     // Update status to rendering
     if (supabase) {
@@ -98,11 +110,11 @@ export async function POST(request: Request) {
 
     if (mode === 'videos') {
       console.log(`[API] Generating ${clipDuration}s AI video clips for scenes (Kling Video)...`)
-      scenesWithContent = await generateSceneVideos(scenes, clipDuration)
+      scenesWithContent = await generateSceneVideos(scenes, clipDuration, { baseUrl, aspectRatio })
       successMessage = `AI video clips (${clipDuration}s each) generated successfully`
     } else {
       console.log('[API] Generating static images for scenes (faster)...')
-      scenesWithContent = await generateSceneImages(scenes)
+      scenesWithContent = await generateSceneImages(scenes, { baseUrl, aspectRatio })
       successMessage = 'Scene images generated successfully'
     }
 
@@ -112,6 +124,8 @@ export async function POST(request: Request) {
       provider: voiceProvider,
       voice,
       voiceId,
+      baseUrl,
+      aspectRatio,
     })
     console.log('[API] Voiceover generation complete')
 

@@ -5,10 +5,18 @@ import { promisify } from 'util'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import ffmpegPath from 'ffmpeg-static'
 
 import { resolveDuration } from '@/lib/video/timing'
+import {
+  buildVideoFilter,
+  inferVideoAspectRatio,
+  resolveVideoFormat,
+  type VideoFormat,
+} from '@/lib/video/format'
 
 export const runtime = 'nodejs'
+export const maxDuration = 300
 
 const execFileAsync = promisify(execFile)
 
@@ -35,6 +43,7 @@ interface AssembleVideoRequest {
     brandingLogoUrl?: string
     brandingLogoPosition?: string
     useWhisperCaptions?: boolean
+    aspectRatio?: '16:9' | '9:16'
   }
 }
 
@@ -124,8 +133,9 @@ async function createSceneSegment(options: {
   duration: number
   outputPath: string
   workDir: string
+  format: VideoFormat
 }) {
-  const { scene, duration, outputPath, workDir } = options
+  const { scene, duration, outputPath, workDir, format } = options
   const hasVideo = Boolean(scene.video_url)
   const hasImage = Boolean(scene.image_url)
   if (!hasVideo && !hasImage) {
@@ -141,20 +151,7 @@ async function createSceneSegment(options: {
     await downloadToFile(scene.audio_url, audioPath)
   }
 
-  const videoFilterBase = [
-    'scale=1920:1080:force_original_aspect_ratio=decrease',
-    'pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
-    'format=yuv420p',
-  ]
-
-  if (scene.on_screen_text && scene.on_screen_text.trim().length > 0) {
-    const safeText = escapeDrawtext(scene.on_screen_text.trim())
-    videoFilterBase.push(
-      `drawtext=text='${safeText}':fontsize=64:fontcolor=white:box=1:boxcolor=black@0.55:x=(w-text_w)/2:y=h-140:line_spacing=8`
-    )
-  }
-
-  const videoFilter = videoFilterBase.join(',')
+  const videoFilter = buildVideoFilter(format, scene.on_screen_text, escapeDrawtext)
 
   const args: string[] = ['-y']
 
@@ -185,7 +182,7 @@ async function createSceneSegment(options: {
     outputPath
   )
 
-  await execFileAsync('ffmpeg', args, { maxBuffer: 1024 * 1024 * 10 })
+  await execFileAsync(resolveFfmpegPath(), args, { maxBuffer: 1024 * 1024 * 10 })
 }
 
 async function concatSegments(segmentPaths: string[], outputPath: string, workDir: string) {
@@ -212,7 +209,7 @@ async function concatSegments(segmentPaths: string[], outputPath: string, workDi
     outputPath,
   ]
 
-  await execFileAsync('ffmpeg', args, { maxBuffer: 1024 * 1024 * 10 })
+  await execFileAsync(resolveFfmpegPath(), args, { maxBuffer: 1024 * 1024 * 10 })
 }
 
 async function mixBackgroundMusic(options: {
@@ -247,7 +244,7 @@ async function mixBackgroundMusic(options: {
     options.outputPath,
   ]
 
-  await execFileAsync('ffmpeg', args, { maxBuffer: 1024 * 1024 * 10 })
+  await execFileAsync(resolveFfmpegPath(), args, { maxBuffer: 1024 * 1024 * 10 })
 }
 
 async function applyBrandingOverlay(options: {
@@ -258,8 +255,9 @@ async function applyBrandingOverlay(options: {
   scale: number
   position: string
   padding: number
+  format: VideoFormat
 }) {
-  const width = Math.round(1920 * Math.min(Math.max(options.scale, 0.05), 0.5))
+  const width = Math.round(options.format.width * Math.min(Math.max(options.scale, 0.05), 0.5))
   const alpha = Math.min(Math.max(options.opacity, 0.1), 1)
   const padding = Math.max(0, Math.round(options.padding))
 
@@ -294,7 +292,7 @@ async function applyBrandingOverlay(options: {
     options.outputPath,
   ]
 
-  await execFileAsync('ffmpeg', args, { maxBuffer: 1024 * 1024 * 10 })
+  await execFileAsync(resolveFfmpegPath(), args, { maxBuffer: 1024 * 1024 * 10 })
 }
 
 function formatTimestamp(totalSeconds: number): string {
@@ -330,9 +328,13 @@ function createVttFromScenes(scenes: SceneAsset[], defaultDuration: number): str
   return `WEBVTT\n\n${cues.join('\n\n')}\n`
 }
 
+function resolveFfmpegPath(): string {
+  return ffmpegPath || 'ffmpeg'
+}
+
 async function ensureFfmpegAvailable() {
   try {
-    await execFileAsync('ffmpeg', ['-version'], { maxBuffer: 1024 * 1024 })
+    await execFileAsync(resolveFfmpegPath(), ['-version'], { maxBuffer: 1024 * 1024 })
   } catch (error) {
     throw new Error('FFmpeg is not installed or not available in PATH')
   }
@@ -499,11 +501,15 @@ export async function POST(request: Request) {
 
     const { data: project } = await supabase
       .from('projects')
-      .select('clip_duration_seconds')
+      .select('video_length_minutes, youtube_clip_duration, tiktok_clip_duration, platform')
       .eq('id', result.project_id)
       .single()
 
-    const defaultDuration = project?.clip_duration_seconds || 5
+    const configuredDuration =
+      project?.platform === 'tiktok'
+        ? project?.tiktok_clip_duration
+        : project?.youtube_clip_duration
+    const defaultDuration = Number(configuredDuration) > 0 ? Number(configuredDuration) : 5
 
     await supabase
       .from('results')
@@ -519,6 +525,11 @@ export async function POST(request: Request) {
     const requestBrandingLogoUrl = requestOptions.brandingLogoUrl?.trim()
     const requestBrandingLogoPosition = requestOptions.brandingLogoPosition?.trim()
     const requestUseWhisperCaptions = Boolean(requestOptions.useWhisperCaptions)
+    const aspectRatio = inferVideoAspectRatio(
+      requestOptions.aspectRatio,
+      project?.video_length_minutes
+    )
+    const format = resolveVideoFormat(aspectRatio)
 
     const assemblyEndpoint = resolveAssemblyEndpoint()
     if (assemblyEndpoint) {
@@ -538,6 +549,7 @@ export async function POST(request: Request) {
             brandingLogoUrl: requestBrandingLogoUrl || brandingLogoUrl,
             brandingLogoPosition: requestBrandingLogoPosition || brandingLogoPosition,
             useWhisperCaptions: requestUseWhisperCaptions,
+            aspectRatio,
           },
         }),
       })
@@ -594,7 +606,7 @@ export async function POST(request: Request) {
     for (const scene of scenes) {
       const duration = resolveDuration(scene, defaultDuration)
       const segmentPath = path.join(tempDir, `segment_${scene.id}.mp4`)
-      await createSceneSegment({ scene, duration, outputPath: segmentPath, workDir: tempDir })
+      await createSceneSegment({ scene, duration, outputPath: segmentPath, workDir: tempDir, format })
       segmentPaths.push(segmentPath)
     }
 
@@ -640,6 +652,7 @@ export async function POST(request: Request) {
         scale: brandingLogoScale,
         position: requestBrandingLogoPosition || brandingLogoPosition,
         padding: brandingLogoPadding,
+        format,
       })
       finalOutputPath = brandedPath
     }

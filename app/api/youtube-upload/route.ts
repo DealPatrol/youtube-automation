@@ -1,31 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
 
 export async function POST(request: NextRequest) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
-    }
-    const resultId = searchParams.get('resultId')
-    const accessToken = searchParams.get('accessToken')
+    const body = await request.json()
+    const resultId = body.resultId
+    const accessToken = body.accessToken
 
     if (!resultId || !accessToken) {
       return NextResponse.json(
@@ -34,52 +13,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[API] YouTube upload started for result:', resultId)
+    const uploadUrl = new URL('/api/youtube/upload', request.url)
+    uploadUrl.searchParams.set('resultId', resultId)
+    uploadUrl.searchParams.set('accessToken', accessToken)
+    if (body.publishAt) uploadUrl.searchParams.set('publishAt', body.publishAt)
 
-    // Fetch result data from Supabase
-    const { data: result, error: dbError } = await supabase
-      .from('results')
-      .select('*')
-      .eq('id', resultId)
-      .single()
-
-    if (dbError || !result) {
-      return NextResponse.json({ error: 'Result not found' }, { status: 404 })
-    }
-
-    // Prepare video metadata from result
-    const metadata = {
-      title: result.seo?.title || 'Untitled Video',
-      description: result.seo?.description || 'Generated with AI Video Creator',
-      tags: result.seo?.tags || [],
-      categoryId: result.seo?.categoryId || '22',
-      privacyStatus: result.seo?.privacyStatus || 'private',
-      madeForKids: result.seo?.madeForKids || false,
-    }
-
-    // Call the Python backend or Node.js handler to upload
-    // For now, we'll create a mock response since actual file upload needs the backend
-    console.log('[API] Upload metadata:', metadata)
-
-    // Update result status in Supabase
-    const { error: updateError } = await supabase
-      .from('results')
-      .update({
-        youtube_status: 'uploading',
-        youtube_metadata: metadata,
-      })
-      .eq('id', resultId)
-
-    if (updateError) {
-      console.error('[API] Failed to update result:', updateError)
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video upload to YouTube initiated',
-      resultId,
-      metadata,
-      note: 'For production, connect your FastAPI backend to handle actual file uploads with googleapis library',
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+    })
+    const responseBody = await response.text()
+    return new NextResponse(responseBody, {
+      status: response.status,
+      headers: { 'Content-Type': response.headers.get('Content-Type') || 'application/json' },
     })
   } catch (error) {
     console.error('[API] YouTube upload error:', error)

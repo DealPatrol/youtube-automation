@@ -310,7 +310,17 @@ def _run_ffmpeg(args: List[str]):
     subprocess.run(["ffmpeg"] + args, check=True, capture_output=True)
 
 
-def _create_scene_segment(scene: Dict[str, Any], duration: int, output_path: str, work_dir: str):
+def _video_dimensions(aspect_ratio: str):
+    return (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
+
+
+def _create_scene_segment(
+    scene: Dict[str, Any],
+    duration: int,
+    output_path: str,
+    work_dir: str,
+    aspect_ratio: str = "16:9",
+):
     has_video = bool(scene.get("video_url"))
     has_image = bool(scene.get("image_url"))
     if not has_video and not has_image:
@@ -324,17 +334,20 @@ def _create_scene_segment(scene: Dict[str, Any], duration: int, output_path: str
         audio_path = os.path.join(work_dir, f"scene_{scene.get('id')}.mp3")
         _download_to_file(scene["audio_url"], audio_path)
 
+    width, height = _video_dimensions(aspect_ratio)
     filters = [
-        "scale=1920:1080:force_original_aspect_ratio=decrease",
-        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
+        f"scale={width}:{height}:force_original_aspect_ratio=increase",
+        f"crop={width}:{height}",
         "format=yuv420p",
     ]
 
     text = str(scene.get("on_screen_text") or "").strip()
     if text:
         safe_text = text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'").replace("\n", "\\n")
+        font_size = 56 if aspect_ratio == "9:16" else 64
+        bottom_offset = 160 if aspect_ratio == "9:16" else 140
         filters.append(
-            f"drawtext=text='{safe_text}':fontsize=64:fontcolor=white:box=1:boxcolor=black@0.55:x=(w-text_w)/2:y=h-140:line_spacing=8"
+            f"drawtext=text='{safe_text}':fontsize={font_size}:fontcolor=white:box=1:boxcolor=black@0.6:x=(w-text_w)/2:y=h-{bottom_offset}:line_spacing=8"
         )
 
     args = ["-y"]
@@ -418,8 +431,9 @@ def _mix_background_music(input_path: str, music_path: str, output_path: str, vo
     _run_ffmpeg(args)
 
 
-def _apply_branding_overlay(input_path: str, logo_path: str, output_path: str, opacity: float, scale: float, position: str, padding: int):
-    width = int(1920 * min(max(scale, 0.05), 0.5))
+def _apply_branding_overlay(input_path: str, logo_path: str, output_path: str, opacity: float, scale: float, position: str, padding: int, aspect_ratio: str = "16:9"):
+    frame_width, _ = _video_dimensions(aspect_ratio)
+    width = int(frame_width * min(max(scale, 0.05), 0.5))
     alpha = min(max(opacity, 0.1), 1.0)
     pad = max(0, int(padding))
 
@@ -555,12 +569,16 @@ async def assemble_video(request: AssembleVideoRequest):
             raise HTTPException(status_code=400, detail="No scenes provided")
 
         default_duration = request.defaultDuration or 5
+        options = request.options or {}
+        aspect_ratio = options.get("aspectRatio", "16:9")
+        if aspect_ratio not in ("16:9", "9:16"):
+            aspect_ratio = "16:9"
 
         segment_paths = []
         for scene in scenes:
             duration = _resolve_duration(scene, default_duration)
             segment_path = os.path.join(temp_dir, f"segment_{scene.get('id')}.mp4")
-            _create_scene_segment(scene, duration, segment_path, temp_dir)
+            _create_scene_segment(scene, duration, segment_path, temp_dir, aspect_ratio)
             segment_paths.append(segment_path)
 
         output_path = os.path.join(temp_dir, f"assembled_{request.resultId}.mp4")
@@ -568,7 +586,6 @@ async def assemble_video(request: AssembleVideoRequest):
 
         final_output_path = output_path
 
-        options = request.options or {}
         music_url = options.get("backgroundMusicUrl") or BACKGROUND_MUSIC_URL
         music_volume = options.get("backgroundMusicVolume", BACKGROUND_MUSIC_VOLUME)
         logo_url = options.get("brandingLogoUrl") or BRANDING_LOGO_URL
@@ -592,6 +609,7 @@ async def assemble_video(request: AssembleVideoRequest):
                 BRANDING_LOGO_SCALE,
                 logo_position,
                 BRANDING_LOGO_PADDING,
+                aspect_ratio,
             )
             final_output_path = branded_path
 

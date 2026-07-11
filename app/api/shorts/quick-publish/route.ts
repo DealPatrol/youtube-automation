@@ -8,6 +8,7 @@ import {
 } from '@/lib/video/shorts-optimizer'
 
 export const runtime = 'nodejs'
+export const maxDuration = 300
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
   const supabase = createClient(supabaseUrl, supabaseKey)
   const userId = user_id || 'anonymous-user'
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  const baseUrl = new URL(request.url).origin
 
   // ── Step 1: create project + result records ──────────────────────────────
   const { data: projectData, error: projectError } = await supabase
@@ -76,7 +77,6 @@ export async function POST(request: Request) {
       tiktok_clip_duration: 0,
       tone,
       platform: 'youtube',
-      clip_duration_seconds: Math.floor(durationSeconds / 4),
     })
     .select('id')
     .single()
@@ -157,7 +157,7 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
         ],
         temperature: 0.7,
         max_output_tokens: 3000,
-        response_format: { type: 'json_object' },
+        text: { format: { type: 'json_object' } },
       })
     } catch (err: any) {
       const msg = err?.error?.message || err?.message || 'OpenAI request failed'
@@ -189,6 +189,9 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
 
     const shortsScenes = optimization.scenes
     const shortsMetadata = optimization.metadata
+    if (shortsScenes.length === 0) {
+      throw new Error('The generated Short did not contain any scenes')
+    }
 
     await supabase
       .from('results')
@@ -216,6 +219,7 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
         voice,
         voiceProvider,
         voiceId,
+        aspectRatio: '9:16',
       }),
     })
 
@@ -228,21 +232,25 @@ Generate EXACTLY ${numScenes} scenes. Return ONLY the JSON object.`
     const assembleResponse = await fetch(`${baseUrl}/api/assemble-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resultId }),
+      body: JSON.stringify({
+        resultId,
+        options: { aspectRatio: '9:16' },
+      }),
     })
 
-    let assembledVideoUrl: string | null = null
-    if (assembleResponse.ok) {
-      const assembleData = await assembleResponse.json()
-      assembledVideoUrl = assembleData.videoUrl || null
-    } else {
-      console.warn('[shorts/quick-publish] Assembly step failed — video will be available without final assembly')
+    if (!assembleResponse.ok) {
+      const errText = await assembleResponse.text()
+      throw new Error(`Assembly failed: ${errText}`)
     }
+    const assembleData = await assembleResponse.json()
+    const assembledVideoUrl = assembleData.videoUrl || null
+    if (!assembledVideoUrl) throw new Error('Assembly completed without a video URL')
 
     // ── Step 6: upload to YouTube (optional) ────────────────────────────
     let youtubeResult: any = null
     if (autoUpload && accessToken) {
-      const uploadResponse = await fetch(`${baseUrl}/api/youtube-upload`, {
+      const uploadParams = new URLSearchParams({ resultId, accessToken })
+      const uploadResponse = await fetch(`${baseUrl}/api/youtube/upload?${uploadParams}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resultId, accessToken }),

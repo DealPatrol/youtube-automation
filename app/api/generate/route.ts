@@ -5,6 +5,9 @@ import { NextResponse } from 'next/server'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
 export async function POST(request: Request) {
   try {
     if (!supabaseUrl || !supabaseKey) {
@@ -22,8 +25,6 @@ export async function POST(request: Request) {
     
     console.log('[API] OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY)
     console.log('[API] OPENAI_API_KEY trimmed:', !!openaiKey)
-    console.log('[API] OPENAI_API_KEY length:', openaiKey?.length)
-    console.log('[API] OPENAI_API_KEY first 10 chars:', openaiKey?.substring(0, 10))
 
     if (!openaiKey) {
       console.error('[API] Missing OPENAI_API_KEY')
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     }
 
     if (!openaiKey.startsWith('sk-')) {
-      console.error('[API] Invalid OPENAI_API_KEY format - does not start with sk-', `Got: ${openaiKey.substring(0, 20)}`)
+      console.error('[API] Invalid OPENAI_API_KEY format - does not start with sk-')
       return NextResponse.json(
         { error: 'Invalid OpenAI API key format. API key should start with "sk-"' },
         { status: 500 }
@@ -145,9 +146,9 @@ Return this exact JSON structure for a ${video_length_minutes}-minute ${tone} ${
     - narration (word-for-word voiceover text for THIS specific scene, about ${avgSceneSeconds} seconds worth of dialogue)
     
     Example for first 3 scenes of ${numScenes} total:
-    {"id": 1, "title": "Opening Hook", "start_time": "0:00", "end_time": "0:10", "visual_description": "Dynamic opening visual", "on_screen_text": "Hook text"},
-    {"id": 2, "title": "Introduction", "start_time": "0:10", "end_time": "0:20", "visual_description": "Topic introduction visual", "on_screen_text": "Intro text"},
-    {"id": 3, "title": "First Point", "start_time": "0:20", "end_time": "0:30", "visual_description": "First main point visual", "on_screen_text": "Point 1"}
+    {"id": 1, "title": "Opening Hook", "start_time": "0:00", "end_time": "0:10", "visual_description": "Dynamic opening visual", "on_screen_text": "Hook text", "narration": "Word-for-word opening narration."},
+    {"id": 2, "title": "Introduction", "start_time": "0:10", "end_time": "0:20", "visual_description": "Topic introduction visual", "on_screen_text": "Intro text", "narration": "Word-for-word introduction narration."},
+    {"id": 3, "title": "First Point", "start_time": "0:20", "end_time": "0:30", "visual_description": "First main point visual", "on_screen_text": "Point 1", "narration": "Word-for-word first point narration."}
     ... continue until scene ${numScenes} ends at ${totalSeconds} seconds
   ],
   "capcut_steps": ["Step 1: Import and organize footage", "Step 2: Arrange timeline and trim clips", "Step 3: Add text overlays and graphics", "Step 4: Mix audio and add music", "Step 5: Export at optimal settings"],
@@ -204,7 +205,7 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
             ],
             temperature: 0.7,
             max_output_tokens: 6000,
-            response_format: { type: 'json_object' },
+            text: { format: { type: 'json_object' } },
           })
     } catch (error: any) {
       const errorPayload = error?.error ?? error

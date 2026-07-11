@@ -30,6 +30,12 @@ export interface VoiceOptions {
   provider?: VoiceProvider
   voice?: string
   voiceId?: string
+  baseUrl?: string
+  aspectRatio?: '16:9' | '9:16'
+}
+
+function resolveBaseUrl(baseUrl?: string): string {
+  return (baseUrl || process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '')
 }
 
 /**
@@ -40,7 +46,7 @@ export async function generateSceneAudio(
   options: VoiceOptions = {}
 ): Promise<VideoScene[]> {
   const updatedScenes = []
-  const { provider, voice = 'alloy', voiceId } = options
+  const { provider, voice = 'alloy', voiceId, baseUrl } = options
 
   for (const scene of scenes) {
     try {
@@ -53,8 +59,7 @@ export async function generateSceneAudio(
 
       console.log(`[v0] Generating voiceover for scene ${scene.id}: ${scene.title}`)
       
-      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-      const response = await fetch(`${baseUrl}/api/generate-audio`, {
+      const response = await fetch(`${resolveBaseUrl(baseUrl)}/api/generate-audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -93,15 +98,20 @@ export async function generateSceneAudio(
 /**
  * Generate video clips for each scene using Kling Video API
  */
-export async function generateSceneVideos(scenes: VideoScene[], duration: number = 5): Promise<VideoScene[]> {
+export async function generateSceneVideos(
+  scenes: VideoScene[],
+  duration: number = 5,
+  options: Pick<VoiceOptions, 'baseUrl' | 'aspectRatio'> = {}
+): Promise<VideoScene[]> {
   const updatedScenes = []
+  const baseUrl = resolveBaseUrl(options.baseUrl)
+  const aspectRatio = options.aspectRatio || '16:9'
 
   for (const scene of scenes) {
     try {
       console.log(`[v0] Generating ${duration}s video for scene ${scene.id}: ${scene.title}`)
       
       // Use fal.ai Kling Video to generate actual video clips
-      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
       const response = await fetch(`${baseUrl}/api/generate-video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -109,6 +119,7 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
           prompt: `${scene.visual_description}. ${scene.on_screen_text}`,
           sceneId: scene.id,
           duration: duration,
+          aspectRatio,
         }),
       })
 
@@ -130,9 +141,9 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
 
       try {
         const { getStockVideoUrl, getStockImageUrl } = await import('@/lib/video/stock-media')
-        const stockVideo = await getStockVideoUrl(scene.visual_description)
+        const stockVideo = await getStockVideoUrl(scene.visual_description, aspectRatio)
         if (stockVideo) {
-          const stockImage = await getStockImageUrl(scene.visual_description)
+          const stockImage = await getStockImageUrl(scene.visual_description, aspectRatio)
           updatedScenes.push({
             ...scene,
             video_url: stockVideo,
@@ -146,12 +157,12 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
 
       // Fallback to image generation if video fails
       try {
-        const imageResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/generate-image`, {
+        const imageResponse = await fetch(`${baseUrl}/api/generate-image`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             prompt: scene.visual_description,
-            aspectRatio: '16:9',
+            aspectRatio,
           }),
         })
 
@@ -169,7 +180,7 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
 
         try {
           const { getStockImageUrl } = await import('@/lib/video/stock-media')
-          const stockImage = await getStockImageUrl(scene.visual_description)
+          const stockImage = await getStockImageUrl(scene.visual_description, aspectRatio)
           if (stockImage) {
             updatedScenes.push({
               ...scene,
@@ -181,10 +192,7 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
           console.warn('[v0] Stock image fallback failed:', stockError)
         }
 
-        updatedScenes.push({
-          ...scene,
-          image_url: `/placeholder.svg`,
-        })
+        throw new Error(`Unable to generate a visual asset for scene ${scene.id}`)
       }
     }
   }
@@ -195,20 +203,24 @@ export async function generateSceneVideos(scenes: VideoScene[], duration: number
 /**
  * Generate images for each scene using AI (legacy support)
  */
-export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoScene[]> {
+export async function generateSceneImages(
+  scenes: VideoScene[],
+  options: Pick<VoiceOptions, 'baseUrl' | 'aspectRatio'> = {}
+): Promise<VideoScene[]> {
   const updatedScenes = []
+  const baseUrl = resolveBaseUrl(options.baseUrl)
+  const aspectRatio = options.aspectRatio || '16:9'
 
   for (const scene of scenes) {
     try {
       console.log(`[v0] Generating image for scene ${scene.id}: ${scene.title}`)
       
-      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
       const response = await fetch(`${baseUrl}/api/generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: scene.visual_description,
-          aspectRatio: '16:9',
+          aspectRatio,
         }),
       })
 
@@ -229,7 +241,7 @@ export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoSc
 
       try {
         const { getStockImageUrl } = await import('@/lib/video/stock-media')
-        const stockImage = await getStockImageUrl(scene.visual_description)
+        const stockImage = await getStockImageUrl(scene.visual_description, aspectRatio)
         if (stockImage) {
           updatedScenes.push({
             ...scene,
@@ -241,10 +253,7 @@ export async function generateSceneImages(scenes: VideoScene[]): Promise<VideoSc
         console.warn('[v0] Stock image fallback failed:', stockError)
       }
 
-      updatedScenes.push({
-        ...scene,
-        image_url: `/placeholder.svg`,
-      })
+      throw new Error(`Unable to generate an image for scene ${scene.id}`)
     }
   }
 

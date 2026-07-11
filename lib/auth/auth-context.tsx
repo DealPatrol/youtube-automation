@@ -9,6 +9,11 @@ interface DemoUser {
   displayName: string | null
 }
 
+export function getAuthUserId(user: User | DemoUser | null): string | undefined {
+  if (!user) return undefined
+  return 'id' in user ? user.id : user.uid
+}
+
 interface AuthContextType {
   user: User | DemoUser | null
   loading: boolean
