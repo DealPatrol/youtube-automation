@@ -60,12 +60,12 @@ interface SceneAsset {
   narration?: string
 }
 
-function escapeDrawtext(text: string): string {
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/:/g, '\\:')
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, '\\n')
+function escapeSubtitleFilterPath(filePath: string): string {
+  return filePath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'")
+}
+
+function sanitizeSubtitleText(text: string): string {
+  return text.replace(/\r?\n/g, ' ').replace(/-->/g, '→').trim()
 }
 
 async function ensureDir(dir: string) {
@@ -159,7 +159,21 @@ async function createSceneSegment(options: {
     await downloadToFile(scene.audio_url, audioPath)
   }
 
-  const videoFilter = buildVideoFilter(format, scene.on_screen_text, escapeDrawtext)
+  let videoFilter = buildVideoFilter(format)
+  if (scene.on_screen_text?.trim()) {
+    const subtitlePath = path.join(workDir, `scene_${scene.id}_overlay.srt`)
+    await fs.promises.writeFile(
+      subtitlePath,
+      `1\n${formatTimestamp(0)} --> ${formatTimestamp(duration)}\n${sanitizeSubtitleText(
+        scene.on_screen_text
+      )}\n`
+    )
+    const fontSize = format.aspectRatio === '9:16' ? 44 : 40
+    const margin = format.aspectRatio === '9:16' ? 150 : 100
+    videoFilter += `,subtitles=filename='${escapeSubtitleFilterPath(
+      subtitlePath
+    )}':force_style='FontSize=${fontSize},PrimaryColour=&H00FFFFFF,BackColour=&H99000000,BorderStyle=3,Outline=1,Shadow=0,Alignment=2,MarginV=${margin}'`
+  }
 
   const args: string[] = ['-y']
 

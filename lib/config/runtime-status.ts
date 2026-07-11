@@ -1,5 +1,6 @@
 export function getRuntimeStatusEnv(
-  env: Record<string, string | undefined> = process.env
+  env: Record<string, string | undefined> = process.env,
+  localFfmpegAvailable = false
 ) {
   return {
     nextPublicSupabaseUrl: Boolean(env.NEXT_PUBLIC_SUPABASE_URL),
@@ -8,7 +9,9 @@ export function getRuntimeStatusEnv(
     supabaseStorageBucket: Boolean(env.SUPABASE_STORAGE_BUCKET),
     openaiApiKey: Boolean(env.OPENAI_API_KEY),
     falKey: Boolean(env.FAL_KEY),
-    videoAssemblyUrl: Boolean(env.VIDEO_ASSEMBLY_URL || env.FASTAPI_URL),
+    videoAssemblyUrl: Boolean(
+      env.VIDEO_ASSEMBLY_URL || env.FASTAPI_URL || localFfmpegAvailable
+    ),
     youtubeOAuth: Boolean(
       env.YOUTUBE_CLIENT_ID &&
         env.YOUTUBE_CLIENT_SECRET &&

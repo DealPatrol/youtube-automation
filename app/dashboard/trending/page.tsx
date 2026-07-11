@@ -261,6 +261,7 @@ export default function TrendingPage() {
                     <Button
                       onClick={() => handleCreateVideo(trend, 'youtube')}
                       className="gap-2 bg-primary hover:bg-primary/90"
+                      disabled={source === 'mock'}
                     >
                       <Sparkles className="w-4 h-4" />
                       YouTube
@@ -270,6 +271,7 @@ export default function TrendingPage() {
                       variant="outline"
                       size="sm"
                       className="gap-2 bg-transparent"
+                      disabled={source === 'mock'}
                     >
                       <Sparkles className="w-4 h-4" />
                       TikTok
@@ -279,6 +281,7 @@ export default function TrendingPage() {
                       size="sm"
                       className="gap-2 bg-transparent"
                       onClick={() => window.open(trend.url, '_blank')}
+                      disabled={source === 'mock'}
                     >
                       View on X
                       <ArrowUpRight className="w-3.5 h-3.5" />

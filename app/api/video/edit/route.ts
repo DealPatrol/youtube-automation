@@ -12,12 +12,19 @@ export const maxDuration = 300
 const execFileAsync = promisify(execFile)
 const MAX_UPLOAD_BYTES = 250 * 1024 * 1024
 
-function escapeDrawtext(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/:/g, '\\:')
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, '\\n')
+function formatSrtTimestamp(totalSeconds: number): string {
+  const milliseconds = Math.max(0, Math.round(totalSeconds * 1000))
+  const hours = Math.floor(milliseconds / 3_600_000)
+  const minutes = Math.floor((milliseconds % 3_600_000) / 60_000)
+  const seconds = Math.floor((milliseconds % 60_000) / 1000)
+  const remainder = milliseconds % 1000
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(
+    seconds
+  ).padStart(2, '0')},${String(remainder).padStart(3, '0')}`
+}
+
+function escapeSubtitleFilterPath(filePath: string): string {
+  return filePath.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'")
 }
 
 export async function POST(request: Request) {
@@ -52,15 +59,21 @@ export async function POST(request: Request) {
 
     const overlayText = String(formData.get('overlayText') || '').trim().slice(0, 160)
     const requestedPosition = String(formData.get('textPosition') || 'bottom')
-    const y =
-      requestedPosition === 'top'
-        ? 'h*0.08'
-        : requestedPosition === 'center'
-          ? '(h-text_h)/2'
-          : 'h-text_h-h*0.08'
-    const videoFilter = overlayText
-      ? `drawtext=text='${escapeDrawtext(overlayText)}':fontsize=h/18:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=18:x=(w-text_w)/2:y=${y}`
-      : 'null'
+    let videoFilter = 'null'
+    if (overlayText) {
+      const subtitlePath = path.join(tempDir, 'overlay.srt')
+      await fs.promises.writeFile(
+        subtitlePath,
+        `1\n${formatSrtTimestamp(0)} --> ${formatSrtTimestamp(
+          trimEnd - trimStart
+        )}\n${overlayText.replace(/\r?\n/g, ' ').replace(/-->/g, '→')}\n`
+      )
+      const alignment =
+        requestedPosition === 'top' ? 8 : requestedPosition === 'center' ? 5 : 2
+      videoFilter = `subtitles=filename='${escapeSubtitleFilterPath(
+        subtitlePath
+      )}':force_style='FontSize=28,PrimaryColour=&H00FFFFFF,BackColour=&H99000000,BorderStyle=3,Outline=1,Shadow=0,Alignment=${alignment},MarginV=28'`
+    }
 
     await execFileAsync(
       resolveFfmpegPath(),

@@ -503,7 +503,7 @@ export default function DashboardPage() {
                       ['Supabase Storage Bucket', envStatus.supabaseStorageBucket],
                       ['OpenAI API Key', envStatus.openaiApiKey],
                       ['FAL Key', envStatus.falKey],
-                      ['Video Assembly URL', envStatus.videoAssemblyUrl],
+                      ['Video assembly', envStatus.videoAssemblyUrl],
                       ['X Credentials', envStatus.xCredentials],
                     ] as Array<[string, boolean]>).map(([label, ready]) => (
                       <div key={label} className="flex items-center justify-between">

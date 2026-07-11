@@ -86,5 +86,7 @@
     "typescript": "^5",
     "typescript-eslint": "^8.58.2"
   },
-  "overrides": {}
+  "overrides": {
+    "postcss": "$postcss"
+  }
 }

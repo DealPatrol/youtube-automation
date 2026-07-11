@@ -33,23 +33,11 @@ export function inferVideoAspectRatio(
 }
 
 export function buildVideoFilter(
-  format: VideoFormat,
-  onScreenText?: string,
-  escapeText: (text: string) => string = (text) => text
+  format: VideoFormat
 ): string {
-  const filters = [
+  return [
     `scale=${format.width}:${format.height}:force_original_aspect_ratio=increase`,
     `crop=${format.width}:${format.height}`,
     'format=yuv420p',
-  ]
-
-  if (onScreenText?.trim()) {
-    const fontSize = format.aspectRatio === '9:16' ? 56 : 64
-    const bottomOffset = format.aspectRatio === '9:16' ? 160 : 140
-    filters.push(
-      `drawtext=text='${escapeText(onScreenText.trim())}':fontsize=${fontSize}:fontcolor=white:box=1:boxcolor=black@0.6:x=(w-text_w)/2:y=h-${bottomOffset}:line_spacing=8`
-    )
-  }
-
-  return filters.join(',')
+  ].join(',')
 }
