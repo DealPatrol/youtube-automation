@@ -10,7 +10,7 @@ const nextConfig = {
     unoptimized: true,
   },
   outputFileTracingIncludes: {
-    '/api/assemble-video': ['./node_modules/ffmpeg-static/ffmpeg'],
+    '/api/assemble-video': ['node_modules/ffmpeg-static/ffmpeg'],
   },
   turbopack: {
     root: __dirname,
