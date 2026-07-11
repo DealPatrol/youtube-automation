@@ -115,7 +115,7 @@ async function resolveOptionalAsset(options: {
   if (localPath) {
     const resolvedPath = path.isAbsolute(localPath)
       ? localPath
-      : path.join(/* turbopackIgnore: true */ process.cwd(), localPath)
+      : path.join(/*turbopackIgnore: true*/ process.cwd(), localPath)
     if (!fs.existsSync(resolvedPath)) {
       throw new Error(`Asset not found: ${resolvedPath}`)
     }
@@ -328,7 +328,7 @@ function createVttFromScenes(scenes: SceneAsset[], defaultDuration: number): str
 }
 
 function resolveFfmpegPath(): string {
-  const bundledPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg')
+  const bundledPath = require.resolve('ffmpeg-static/ffmpeg')
   return fs.existsSync(bundledPath) ? bundledPath : 'ffmpeg'
 }
 
