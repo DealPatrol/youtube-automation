@@ -5,7 +5,6 @@ import { promisify } from 'util'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import ffmpegPath from 'ffmpeg-static'
 
 import { resolveDuration } from '@/lib/video/timing'
 import {
@@ -329,7 +328,8 @@ function createVttFromScenes(scenes: SceneAsset[], defaultDuration: number): str
 }
 
 function resolveFfmpegPath(): string {
-  return ffmpegPath || 'ffmpeg'
+  const bundledPath = path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg')
+  return fs.existsSync(bundledPath) ? bundledPath : 'ffmpeg'
 }
 
 async function ensureFfmpegAvailable() {
