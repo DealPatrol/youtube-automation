@@ -1,4 +1,6 @@
-export function getRuntimeStatusEnv(env: NodeJS.ProcessEnv = process.env) {
+export function getRuntimeStatusEnv(
+  env: Record<string, string | undefined> = process.env
+) {
   return {
     nextPublicSupabaseUrl: Boolean(env.NEXT_PUBLIC_SUPABASE_URL),
     nextPublicSupabaseAnonKey: Boolean(env.NEXT_PUBLIC_SUPABASE_ANON_KEY),

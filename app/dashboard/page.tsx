@@ -28,7 +28,7 @@ import {
   PauseCircle,
   Loader2,
 } from 'lucide-react'
-import { useAuth } from '@/lib/auth/auth-context'
+import { getAuthUserId, useAuth } from '@/lib/auth/auth-context'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -140,7 +140,7 @@ export default function DashboardPage() {
         const { data: projectsData, error: projectsError } = await supabase
           .from('projects')
           .select('*')
-          .eq('user_id', user.uid)
+          .eq('user_id', getAuthUserId(user))
           .order('created_at', { ascending: false })
           .limit(10)
 
@@ -518,7 +518,7 @@ export default function DashboardPage() {
                 )}
                 {envStatus && (
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    {[
+                    {([
                       ['Supabase URL', envStatus.nextPublicSupabaseUrl],
                       ['Supabase Service Key', envStatus.supabaseServiceRoleKey],
                       ['Supabase Storage Bucket', envStatus.supabaseStorageBucket],
@@ -526,7 +526,7 @@ export default function DashboardPage() {
                       ['FAL Key', envStatus.falKey],
                       ['Video Assembly URL', envStatus.videoAssemblyUrl],
                       ['X Credentials', envStatus.xCredentials],
-                    ].map(([label, ready]) => (
+                    ] as Array<[string, boolean]>).map(([label, ready]) => (
                       <div key={label} className="flex items-center justify-between">
                         <span>{label}</span>
                         {ready ? (

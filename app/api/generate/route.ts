@@ -176,37 +176,18 @@ Remember: Return ONLY the JSON object, no markdown code blocks or explanations.`
 
     console.log('[API] Calling OpenAI API with responses API')
     const client = new OpenAI({ apiKey: openaiKey })
-    const promptId = process.env.OPENAI_PROMPT_ID
-    const promptVersion = process.env.OPENAI_PROMPT_VERSION || '1'
-
     let response
     try {
-      response = promptId
-        ? await client.responses.create({
-            prompt: { id: promptId, version: promptVersion },
-            input: {
-              topic,
-              description,
-              video_length_minutes,
-              youtube_clip_duration,
-              tiktok_clip_duration,
-              tone,
-              platform,
-              totalSeconds,
-              numScenes,
-              avgSceneSeconds,
-            },
-          })
-        : await client.responses.create({
-            model: 'gpt-4o-mini',
-            input: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.7,
-            max_output_tokens: 6000,
-            text: { format: { type: 'json_object' } },
-          })
+      response = await client.responses.create({
+        model: 'gpt-4o-mini',
+        input: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_output_tokens: 6000,
+        text: { format: { type: 'json_object' } },
+      })
     } catch (error: any) {
       const errorPayload = error?.error ?? error
       console.error('[API] OpenAI error response:', JSON.stringify(errorPayload, null, 2))

@@ -27,10 +27,11 @@ export async function POST(request: Request) {
     if (useElevenLabs) {
       console.log('[Audio API] Using ElevenLabs TTS')
       const selectedVoiceId = voiceId || ELEVENLABS_VOICE_ID
+      const elevenLabsKey = ELEVENLABS_API_KEY as string
       const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}`, {
         method: 'POST',
         headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
+          'xi-api-key': elevenLabsKey,
           'Content-Type': 'application/json',
           Accept: 'audio/mpeg',
         },

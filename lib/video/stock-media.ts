@@ -1,6 +1,6 @@
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY
 
-function buildHeaders() {
+function buildHeaders(): Record<string, string> {
   return PEXELS_API_KEY ? { Authorization: PEXELS_API_KEY } : {}
 }
 

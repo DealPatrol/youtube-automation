@@ -1,8 +1,6 @@
 import { google } from 'googleapis'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import formidable from 'formidable'
-import fs from 'fs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -17,34 +15,6 @@ if (supabaseUrl && supabaseKey) {
   }
 } else {
   console.warn('[API] Supabase credentials not configured')
-}
-
-// Parse multipart form data
-async function parseFormData(request: NextRequest) {
-  const buffer = await request.arrayBuffer()
-  const contentType = request.headers.get('content-type') || ''
-  
-  return new Promise((resolve, reject) => {
-    const form = new formidable.IncomingForm()
-    const fakeReq = {
-      headers: {
-        'content-type': contentType,
-        'content-length': buffer.byteLength.toString(),
-      },
-      on: (event: string, handler: Function) => {
-        if (event === 'data') {
-          handler(Buffer.from(buffer))
-        } else if (event === 'end') {
-          handler()
-        }
-      },
-    } as any
-
-    form.parse(fakeReq, (err, fields, files) => {
-      if (err) reject(err)
-      else resolve({ fields, files })
-    })
-  })
 }
 
 export async function POST(request: NextRequest) {
@@ -140,7 +110,7 @@ export async function POST(request: NextRequest) {
     // Upload to YouTube
     const response = await youtube.videos.insert(
       {
-        part: 'snippet,status',
+        part: ['snippet', 'status'],
         requestBody: {
           snippet: {
             title: title || 'Untitled Video',
@@ -154,12 +124,10 @@ export async function POST(request: NextRequest) {
             publishAt: publishAt || undefined,
           },
         },
-      },
-      {
         media: {
           body: Buffer.from(buffer),
         },
-      } as any
+      }
     )
 
     const youtubeVideoId = response.data.id
