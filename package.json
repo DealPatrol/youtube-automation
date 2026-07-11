@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "npm@10.9.7",
   "scripts": {
-    "build": "next build",
+    "build": "next build --webpack",
     "dev": "next dev",
     "lint": "eslint . --max-warnings=0",
     "test": "node --import tsx --test tests/**/*.test.ts",
