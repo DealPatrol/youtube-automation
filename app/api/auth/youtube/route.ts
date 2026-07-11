@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getPublicAppUrl } from '@/lib/config/app-url'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const baseUrl = getPublicAppUrl()
     const callbackUrl = `${baseUrl}/api/auth/youtube/callback`
 
     // Build OAuth consent URL with proper URL encoding

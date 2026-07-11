@@ -9,7 +9,11 @@ export function getRuntimeStatusEnv(
     openaiApiKey: Boolean(env.OPENAI_API_KEY),
     falKey: Boolean(env.FAL_KEY),
     videoAssemblyUrl: Boolean(env.VIDEO_ASSEMBLY_URL || env.FASTAPI_URL),
-    youtubeOAuth: Boolean(env.YOUTUBE_CLIENT_ID && env.YOUTUBE_CLIENT_SECRET && env.NEXTAUTH_URL),
+    youtubeOAuth: Boolean(
+      env.YOUTUBE_CLIENT_ID &&
+        env.YOUTUBE_CLIENT_SECRET &&
+        (env.NEXTAUTH_URL || env.RENDER_EXTERNAL_URL || env.VERCEL_URL)
+    ),
     xCredentials: Boolean(
       env.X_CONSUMER_KEY &&
         env.X_CONSUMER_SECRET &&

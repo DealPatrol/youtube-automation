@@ -1,15 +1,40 @@
-# Exported from Render on 2026-02-15T11:14:08Z
-version: "1"
-projects:
-- name: My project
-  environments:
-  - name: Production
-    services:
-    - type: keyvalue
-      name: YouTube auto
-      plan: free
-      region: oregon
-      maxmemoryPolicy: allkeys-lru
-      ipAllowList:
-      - source: 24.241.192.28/32
-        description: colecollins763@gmail.com.
+services:
+  - type: web
+    name: youtube-automation
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: SUPABASE_STORAGE_BUCKET
+        value: videos
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FAL_KEY
+        sync: false
+      - key: PEXELS_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true

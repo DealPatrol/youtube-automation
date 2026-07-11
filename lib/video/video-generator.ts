@@ -2,6 +2,7 @@
  * Video Generation Service
  * Handles video creation using AI-generated video clips for scenes
  */
+import { getPublicAppUrl } from '@/lib/config/app-url'
 
 export interface VideoScene {
   id: number
@@ -35,7 +36,7 @@ export interface VoiceOptions {
 }
 
 function resolveBaseUrl(baseUrl?: string): string {
-  return (baseUrl || process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '')
+  return (baseUrl || getPublicAppUrl()).replace(/\/$/, '')
 }
 
 /**
