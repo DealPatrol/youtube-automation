@@ -116,7 +116,7 @@ async function resolveOptionalAsset(options: {
   if (localPath) {
     const resolvedPath = path.isAbsolute(localPath)
       ? localPath
-      : path.join(process.cwd(), localPath)
+      : path.join(/* turbopackIgnore: true */ process.cwd(), localPath)
     if (!fs.existsSync(resolvedPath)) {
       throw new Error(`Asset not found: ${resolvedPath}`)
     }
