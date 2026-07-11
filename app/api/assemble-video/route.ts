@@ -97,6 +97,16 @@ async function copyLocalFile(sourcePath: string, outputPath: string) {
   await fs.promises.copyFile(sourcePath, outputPath)
 }
 
+function resolvePublicAssetPath(localPath: string): string {
+  const publicDir = path.join(process.cwd(), 'public')
+  const relativePath = localPath.replace(/^\.?\/?public\//, '')
+  const resolvedPath = path.resolve(publicDir, relativePath)
+  if (!resolvedPath.startsWith(`${publicDir}${path.sep}`)) {
+    throw new Error('Local assembly assets must be inside the public directory')
+  }
+  return resolvedPath
+}
+
 async function resolveOptionalAsset(options: {
   url?: string
   localPath?: string
@@ -113,9 +123,7 @@ async function resolveOptionalAsset(options: {
   }
 
   if (localPath) {
-    const resolvedPath = path.isAbsolute(localPath)
-      ? localPath
-      : path.join(/*turbopackIgnore: true*/ process.cwd(), localPath)
+    const resolvedPath = resolvePublicAssetPath(localPath)
     if (!fs.existsSync(resolvedPath)) {
       throw new Error(`Asset not found: ${resolvedPath}`)
     }
