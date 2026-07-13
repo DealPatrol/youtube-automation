@@ -8,28 +8,17 @@ import {
   saveStrategyOutput,
 } from "@/lib/db/strategy-queries";
 import { getStrategyPrompt } from "@/lib/ai/strategy-prompts";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user from auth header
+    // Get user from auth header (bearer value is the user id)
     const authHeader = request.headers.get("authorization");
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
+    const userId = authHeader.replace("Bearer ", "");
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -49,9 +38,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create user strategy
-    let strategy = await getUserStrategy(user.id);
+    let strategy = await getUserStrategy(userId);
     if (!strategy) {
-      strategy = await createChannelStrategy(user.id, {
+      strategy = await createChannelStrategy(userId, {
         niche: formValues.niche || "",
         targetAudience: formValues.audience || "",
       });
@@ -85,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     if (completionUpdates[promptNumber]) {
       const updateKey = completionUpdates[promptNumber];
-      await updateChannelStrategy(user.id, {
+      await updateChannelStrategy(userId, {
         [updateKey]: true,
       });
     }
