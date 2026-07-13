@@ -48,6 +48,13 @@ export interface ScriptGenerationRequest {
   duration?: number;
   tone?: string;
   trendingAngle?: string;
+  // Strategy context (from YouTube Strategy Studio)
+  strategyContext?: {
+    niche: string;
+    targetAudience: string;
+    contentPillar: string;
+    monetizationAngle: string;
+  };
 }
 
 export interface GeneratedScript {
@@ -84,12 +91,25 @@ export async function generateVideoScript(
 
   try {
     // Step 2: Get the formatted prompt for this video format
-    const prompt = getPromptForFormat(
+    let prompt = getPromptForFormat(
       request.format,
       request.topic,
       duration,
       request.trendingAngle
     );
+
+    // Step 2.5: Enhance prompt with strategy context if provided
+    if (request.strategyContext) {
+      console.log('[v0] Enhancing script with strategy context from YouTube Strategy Studio');
+      const { niche, targetAudience, contentPillar, monetizationAngle } = request.strategyContext;
+      prompt += `\n\n**CHANNEL CONTEXT (from YouTube Strategy Studio):**
+- Channel Niche: ${niche}
+- Target Audience: ${targetAudience}
+- Content Pillar: ${contentPillar}
+- Monetization Angle: ${monetizationAngle}
+
+Adapt the script to align with this channel's identity, audience, and monetization strategy.`;
+    }
 
     // Step 3: Call Claude with structured output
     console.log('[v0] Calling Claude API with prompt for format:', request.format);
