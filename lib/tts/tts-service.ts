@@ -1,8 +1,4 @@
-'use server';
-
-import type { Voiceover, VoiceProvider } from '../types';
-import { GoogleCloudTTSProvider } from './providers/google-cloud';
-import { ElevenLabsTTSProvider } from './providers/elevenlabs';
+import type { VoiceProvider } from '../types';
 
 export interface TTSGenerationRequest {
   text: string;
@@ -24,13 +20,8 @@ export interface TTSGenerationResponse {
  * Production: ElevenLabs (premium natural voices)
  */
 export class TTSService {
-  private googleProvider: GoogleCloudTTSProvider;
-  private elevenLabsProvider: ElevenLabsTTSProvider;
-
-  constructor() {
-    this.googleProvider = new GoogleCloudTTSProvider();
-    this.elevenLabsProvider = new ElevenLabsTTSProvider();
-  }
+  private googleProvider: any = null;
+  private elevenLabsProvider: any = null;
 
   /**
    * Generate audio from text using the configured provider
@@ -42,13 +33,16 @@ export class TTSService {
     try {
       console.log('[v0] Generating TTS with provider:', provider);
 
+      // Dynamically import providers to avoid circular dependencies
       if (provider === 'elevenlabs') {
-        return await this.elevenLabsProvider.generate(request);
-      } else if (provider === 'google-cloud') {
-        return await this.googleProvider.generate(request);
+        const { ElevenLabsTTSProvider } = await import('./providers/elevenlabs');
+        const elevenLabsProvider = new ElevenLabsTTSProvider();
+        return await elevenLabsProvider.generate(request);
       } else {
         // Default to Google Cloud
-        return await this.googleProvider.generate(request);
+        const { GoogleCloudTTSProvider } = await import('./providers/google-cloud');
+        const googleProvider = new GoogleCloudTTSProvider();
+        return await googleProvider.generate(request);
       }
     } catch (error) {
       console.error(`[v0] TTS generation failed with ${provider}:`, error);
@@ -57,7 +51,9 @@ export class TTSService {
       if (provider !== 'google-cloud') {
         console.log('[v0] Falling back to Google Cloud TTS');
         try {
-          return await this.googleProvider.generate(request);
+          const { GoogleCloudTTSProvider } = await import('./providers/google-cloud');
+          const googleProvider = new GoogleCloudTTSProvider();
+          return await googleProvider.generate(request);
         } catch (fallbackError) {
           console.error('[v0] Fallback TTS generation also failed:', fallbackError);
           throw fallbackError;
@@ -87,26 +83,34 @@ export class TTSService {
    * Get list of available voices for a provider
    */
   async getAvailableVoices(provider: VoiceProvider): Promise<Array<{ id: string; name: string }>> {
-    if (provider === 'elevenlabs') {
-      return this.elevenLabsProvider.getVoices();
-    } else if (provider === 'google-cloud') {
-      return this.googleProvider.getVoices();
+    try {
+      if (provider === 'elevenlabs') {
+        const { ElevenLabsTTSProvider } = await import('./providers/elevenlabs');
+        const elevenLabsProvider = new ElevenLabsTTSProvider();
+        return await elevenLabsProvider.getVoices();
+      } else {
+        const { GoogleCloudTTSProvider } = await import('./providers/google-cloud');
+        const googleProvider = new GoogleCloudTTSProvider();
+        return await googleProvider.getVoices();
+      }
+    } catch (error) {
+      console.error('[v0] Failed to get available voices:', error);
+      return [];
     }
-
-    return [];
   }
 
   /**
    * Estimate cost of TTS generation
    */
   estimateCost(textLength: number, provider: VoiceProvider): number {
+    // Rough estimates
     if (provider === 'elevenlabs') {
-      return this.elevenLabsProvider.estimateCost(textLength);
-    } else if (provider === 'google-cloud') {
-      return this.googleProvider.estimateCost(textLength);
+      // ElevenLabs: ~$0.30 per 1M characters
+      return (textLength / 1000000) * 0.30;
+    } else {
+      // Google Cloud: ~$16 per 1M characters (free tier: 1M/month)
+      return (textLength / 1000000) * 0.016;
     }
-
-    return 0;
   }
 }
 

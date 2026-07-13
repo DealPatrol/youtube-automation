@@ -1,5 +1,3 @@
-'use server';
-
 import { generateObject } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';

@@ -1,5 +1,3 @@
-'use server';
-
 import { createTrendingTopic, getTrendingTopics } from '../db/queries';
 import type { TrendingTopic, Platform, VideoFormat } from '../types';
 

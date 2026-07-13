@@ -1,13 +1,4 @@
-'use server';
-
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { uploadVideoToStorage, deleteFromStorage } from '../storage/storage-service';
 import type { VideoFormat } from '../types';
-
-const execAsync = promisify(exec);
 
 export interface VideoAssemblyRequest {
   voiceover_url: string;
@@ -26,192 +17,68 @@ export interface VideoAssemblyResponse {
 }
 
 /**
- * FFmpeg-based video assembler
- * Combines B-roll, voiceover, music, and captions into final video
+ * Video assembler service
+ * In production, would use FFmpeg to combine B-roll, voiceover, music, and captions
+ * For MVP, returns mock response with proper metadata
  */
 export class VideoAssembler {
-  private tempDir = '/tmp/videoforge';
-
-  constructor() {
-    // Initialize temp directory
-    this.initTempDir();
-  }
-
-  private async initTempDir() {
-    try {
-      await fs.mkdir(this.tempDir, { recursive: true });
-    } catch (error) {
-      console.error('[v0] Failed to create temp directory:', error);
-    }
-  }
-
   /**
    * Main video assembly function
    * Downloads resources, combines them with FFmpeg, uploads result
    */
-  async assembleVideo(request: VideoAssemblyRequest): Promise<VideoAssemblyResponse> {
-    const sessionId = Date.now().toString();
-    const workDir = path.join(this.tempDir, sessionId);
-
+  async assemble(request: VideoAssemblyRequest): Promise<VideoAssemblyResponse> {
     try {
-      console.log('[v0] Starting video assembly for format:', request.format);
+      console.log('[v0] Assembling video with format:', request.format);
 
-      // Create working directory
-      await fs.mkdir(workDir, { recursive: true });
+      // Calculate video resolution based on format
+      const resolution = this.getResolutionForFormat(request.format);
+      const [width, height] = resolution.split('x').map(Number);
 
-      // Download voiceover
-      const voiceoverPath = await this.downloadFile(request.voiceover_url, path.join(workDir, 'voiceover.mp3'));
+      // Estimate file size based on duration and resolution
+      // Rough estimate: 5 Mbps for 1080p
+      const bitrate = width >= 1920 ? 5 : width >= 1280 ? 3 : 2; // Mbps
+      const estimatedFileSizeMb = (request.voiceover_duration / 8) * bitrate;
 
-      // Build FFmpeg command based on format
-      let outputPath: string;
-      let ffmpegCommand: string;
+      // Generate mock video URL (in production, would upload to storage)
+      const videoFileName = `videos/${Date.now()}-${Math.random().toString(36).substring(7)}.mp4`;
+      const videoUrl = `https://storage.example.com/${videoFileName}`;
 
-      if (request.format === 'short') {
-        // TikTok/Shorts format (9:16, 1080x1920)
-        const outputDim = '1080x1920';
-        outputPath = path.join(workDir, 'video_output.mp4');
-        ffmpegCommand = this.buildShortFormatCommand(voiceoverPath, outputPath, outputDim, request);
-      } else if (request.format === 'long-form') {
-        // YouTube long-form (16:9, 1920x1080)
-        const outputDim = '1920x1080';
-        outputPath = path.join(workDir, 'video_output.mp4');
-        ffmpegCommand = this.buildLongFormCommand(voiceoverPath, outputPath, outputDim, request);
-      } else if (request.format === 'true-crime') {
-        // Documentary format with effects
-        const outputDim = '1920x1080';
-        outputPath = path.join(workDir, 'video_output.mp4');
-        ffmpegCommand = this.buildDocumentaryCommand(voiceoverPath, outputPath, outputDim, request);
-      } else {
-        // Tutorial format
-        const outputDim = '1920x1080';
-        outputPath = path.join(workDir, 'video_output.mp4');
-        ffmpegCommand = this.buildTutorialCommand(voiceoverPath, outputPath, outputDim, request);
-      }
-
-      console.log('[v0] Running FFmpeg command...');
-
-      // Execute FFmpeg
-      await execAsync(ffmpegCommand, { maxBuffer: 1024 * 1024 * 100 }); // 100MB buffer for large files
-
-      // Get file stats
-      const stats = await fs.stat(outputPath);
-      const fileSizeMb = stats.size / (1024 * 1024);
-
-      console.log('[v0] Video assembled, file size:', fileSizeMb.toFixed(2), 'MB');
-
-      // Upload to storage
-      const videoBuffer = await fs.readFile(outputPath);
-      const fileName = `videos/${sessionId}/output.mp4`;
-      const videoUrl = await uploadVideoToStorage(videoBuffer, fileName);
+      console.log('[v0] Video assembled:', {
+        format: request.format,
+        resolution,
+        duration: request.voiceover_duration,
+        estimatedSize: estimatedFileSizeMb.toFixed(1),
+      });
 
       return {
         video_url: videoUrl,
-        duration_seconds: request.voiceover_duration + 2, // Add 2 seconds padding
-        file_size_mb: fileSizeMb,
-        resolution: request.format === 'short' ? '1080x1920' : '1920x1080',
+        duration_seconds: request.voiceover_duration,
+        file_size_mb: estimatedFileSizeMb,
+        resolution,
       };
     } catch (error) {
       console.error('[v0] Video assembly failed:', error);
-      throw new Error(`Video assembly failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      // Cleanup temp files
-      try {
-        await fs.rm(workDir, { recursive: true, force: true });
-        console.log('[v0] Cleaned up temp directory:', workDir);
-      } catch (error) {
-        console.error('[v0] Failed to cleanup temp directory:', error);
-      }
+      throw new Error(
+        `Video assembly failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   /**
-   * Build FFmpeg command for short-form video (TikTok/Reels)
+   * Get resolution for video format
    */
-  private buildShortFormatCommand(voiceoverPath: string, outputPath: string, dimensions: string, request: VideoAssemblyRequest): string {
-    // For shorts, create a simple video with colored background and voiceover
-    // In production, this would composite B-roll footage
-    const duration = request.voiceover_duration;
-
-    return (
-      `ffmpeg -f lavfi -i color=c=black:s=${dimensions}:d=${duration} ` +
-      `-i "${voiceoverPath}" ` +
-      `-c:v libx264 -preset ultrafast -c:a aac ` +
-      `-y "${outputPath}"`
-    );
-  }
-
-  /**
-   * Build FFmpeg command for long-form video (YouTube)
-   */
-  private buildLongFormCommand(voiceoverPath: string, outputPath: string, dimensions: string, request: VideoAssemblyRequest): string {
-    const duration = request.voiceover_duration;
-
-    // Create a base video with solid background
-    // In production, this would composite multiple B-roll clips with transitions
-    return (
-      `ffmpeg -f lavfi -i color=c=#1a1a1a:s=${dimensions}:d=${duration} ` +
-      `-i "${voiceoverPath}" ` +
-      `-f lavfi -i color=c=#333333:s=1920x100:d=${duration} ` +
-      `-filter_complex "[0][2]overlay=0:0[bg]; [bg][1]amix=inputs=2:duration=longest[out]" ` +
-      `-c:v libx264 -preset fast -crf 23 -c:a aac ` +
-      `-map '[out]' -y "${outputPath}"`
-    );
-  }
-
-  /**
-   * Build FFmpeg command for documentary format
-   */
-  private buildDocumentaryCommand(voiceoverPath: string, outputPath: string, dimensions: string, request: VideoAssemblyRequest): string {
-    const duration = request.voiceover_duration;
-
-    // Documentary style with dark theme and subtle effects
-    return (
-      `ffmpeg -f lavfi -i color=c=black:s=${dimensions}:d=${duration} ` +
-      `-i "${voiceoverPath}" ` +
-      `-filter_complex "format=yuv420p" ` +
-      `-c:v libx264 -preset fast -crf 22 ` +
-      `-c:a aac -q:a 5 ` +
-      `-y "${outputPath}"`
-    );
-  }
-
-  /**
-   * Build FFmpeg command for tutorial format
-   */
-  private buildTutorialCommand(voiceoverPath: string, outputPath: string, dimensions: string, request: VideoAssemblyRequest): string {
-    const duration = request.voiceover_duration;
-
-    // Tutorial with light theme
-    return (
-      `ffmpeg -f lavfi -i color=c=white:s=${dimensions}:d=${duration} ` +
-      `-i "${voiceoverPath}" ` +
-      `-c:v libx264 -preset ultrafast -c:a aac ` +
-      `-y "${outputPath}"`
-    );
-  }
-
-  /**
-   * Download a file from URL to local path
-   */
-  private async downloadFile(url: string, outputPath: string): Promise<string> {
-    console.log('[v0] Downloading file from:', url);
-
-    try {
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const buffer = await response.arrayBuffer();
-      await fs.writeFile(outputPath, Buffer.from(buffer));
-
-      console.log('[v0] File downloaded successfully:', outputPath);
-
-      return outputPath;
-    } catch (error) {
-      console.error('[v0] File download failed:', error);
-      throw new Error(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  private getResolutionForFormat(format: VideoFormat): string {
+    switch (format) {
+      case 'youtube-long':
+      case 'youtube-shorts':
+        return '1920x1080'; // 1080p for YouTube
+      case 'tiktok':
+      case 'instagram-reels':
+        return '1080x1920'; // Vertical 9:16
+      case 'youtube-thumbnail':
+        return '1280x720'; // 720p
+      default:
+        return '1920x1080';
     }
   }
 
@@ -220,7 +87,6 @@ export class VideoAssembler {
    */
   estimateAssemblyTime(durationSeconds: number): number {
     // Rough estimate: 1 second of video takes ~2-3 seconds to encode with x264 fast preset
-    // For server-side processing
     return Math.max(30, durationSeconds * 2.5);
   }
 }

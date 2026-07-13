@@ -1,5 +1,3 @@
-'use server';
-
 import { google } from 'googleapis';
 import * as fs from 'fs/promises';
 
