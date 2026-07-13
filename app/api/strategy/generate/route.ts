@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       model: anthropic("claude-3-5-sonnet-20241022"),
       prompt: builtPrompt,
       temperature: 0.7,
-      maxTokens: 2000,
+      maxOutputTokens: 2000,
     });
 
     // Save the output

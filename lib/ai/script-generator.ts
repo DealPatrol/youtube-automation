@@ -117,7 +117,7 @@ Adapt the script to align with this channel's identity, audience, and monetizati
       schema: ScriptResponseSchema,
       prompt,
       temperature: 0.7,
-      maxTokens: 4000,
+      maxOutputTokens: 4000,
     });
 
     console.log('[v0] Claude returned script successfully');
