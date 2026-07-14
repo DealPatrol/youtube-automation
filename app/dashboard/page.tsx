@@ -225,6 +225,12 @@ export default function DashboardPage() {
               <p className="text-muted-foreground mt-1">Manage your YouTube automation</p>
             </div>
             <div className="flex items-center gap-3">
+              <Link href="/dashboard/strategy">
+                <Button variant="outline" size="sm" className="bg-transparent">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  YouTube Strategy
+                </Button>
+              </Link>
               <Link href="/dashboard/trending">
                 <Button variant="outline" size="sm" className="bg-transparent">
                   <TrendingUp className="w-4 h-4 mr-2" />
@@ -237,10 +243,10 @@ export default function DashboardPage() {
                   Settings
                 </Button>
               </Link>
-              <Link href="/">
+              <Link href="/dashboard/create">
                 <Button size="sm">
                   <Plus className="w-4 h-4 mr-2" />
-                  New Video
+                  Create Video
                 </Button>
               </Link>
             </div>
