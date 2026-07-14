@@ -6,6 +6,19 @@ Production-oriented YouTube automation stack with:
 - Python workers for rendering and uploads
 - Supabase for auth, data, and storage
 
+## Create a video end-to-end (CLI)
+
+The fastest path from trending topic to published YouTube video is the content
+pipeline CLI — trend discovery → script/shot list → photos → TTS + captions →
+human approval → FFmpeg render → rights manifest → publish:
+
+```bash
+npm run pipeline -- create --minutes 1 --aspect 9:16
+```
+
+See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for setup (only
+`OPENAI_API_KEY` is required to start) and all commands.
+
 ## Standard package manager
 
 This repo is now standardized on **npm**.
