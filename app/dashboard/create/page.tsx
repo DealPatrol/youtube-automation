@@ -28,6 +28,26 @@ export default function VideoCreatorPage() {
   const [error, setError] = useState<string | null>(null);
   const [scriptId, setScriptId] = useState<string | null>(null);
   const [videoId, setVideoId] = useState<string | null>(null);
+  const [showEnvWarning, setShowEnvWarning] = useState(false);
+
+  React.useEffect(() => {
+    // Check if API is available by making a test call
+    const checkSetup = async () => {
+      try {
+        const response = await fetch('/api/scripts/generate/estimate?duration=600');
+        if (!response.ok && response.status !== 401) {
+          // Not a 401 auth issue, likely config issue
+          const data = await response.json();
+          if (data.error?.includes('not configured')) {
+            setShowEnvWarning(true);
+          }
+        }
+      } catch (e) {
+        console.log('[v0] Setup check skipped');
+      }
+    };
+    checkSetup();
+  }, []);
 
   const [formData, setFormData] = useState<FormData>({
     topic: '',
@@ -55,7 +75,7 @@ export default function VideoCreatorPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('userId') || '' : ''}`,
+          Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('userId') || 'guest' : 'guest'}`,
         },
         body: JSON.stringify({
           topic: formData.topic,
@@ -65,15 +85,24 @@ export default function VideoCreatorPage() {
         }),
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to generate script');
+        console.error('[v0] API error response:', data);
+        throw new Error(data.error || 'Failed to generate script');
       }
 
-      const data = await response.json();
+      if (!data.data?.id) {
+        console.error('[v0] Invalid response structure:', data);
+        throw new Error('Invalid response from server');
+      }
+
       setScriptId(data.data.id);
       setStep('script');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const errorMsg = err instanceof Error ? err.message : 'An error occurred';
+      console.error('[v0] Script generation error:', errorMsg);
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -154,6 +183,16 @@ export default function VideoCreatorPage() {
           </h1>
           <p className="text-muted-foreground">Generate professional videos in minutes using AI</p>
         </div>
+
+        {/* Environment Warning */}
+        {showEnvWarning && (
+          <Alert className="mb-6 border-yellow-600 bg-yellow-50">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              <strong>Setup Required:</strong> ANTHROPIC_API_KEY is not configured. Please add your API key to environment variables to enable AI script generation. Check the DEPLOY_CHECKLIST.md for instructions.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Error Alert */}
         {error && (

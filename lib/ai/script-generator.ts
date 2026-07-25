@@ -111,6 +111,13 @@ Adapt the script to align with this channel's identity, audience, and monetizati
 
     // Step 3: Call Claude with structured output
     console.log('[v0] Calling Claude API with prompt for format:', request.format);
+    
+    // Validate API key is set
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error(
+        'ANTHROPIC_API_KEY is not configured. Please set it in your environment variables.'
+      );
+    }
 
     const result = await generateObject({
       model: anthropic('claude-3-5-sonnet-20241022'),

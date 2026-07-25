@@ -49,7 +49,7 @@ export default function YouTubeStrategyStudioPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.id}`,
+          Authorization: `Bearer ${(user as any)?.id || 'guest'}`,
         },
         body: JSON.stringify({
           promptNumber: prompt.id,

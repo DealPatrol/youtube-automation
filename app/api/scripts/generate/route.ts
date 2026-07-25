@@ -65,12 +65,20 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('[v0] Script generation API error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate script';
+    console.error('[v0] Script generation API error:', errorMessage);
+    console.error('[v0] Full error:', error);
+    
+    // Check for missing API key
+    if (errorMessage.includes('ANTHROPIC_API_KEY') || errorMessage.includes('undefined')) {
+      console.error('[v0] ANTHROPIC_API_KEY may not be set');
+    }
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to generate script',
+        error: errorMessage,
+        debug: process.env.NODE_ENV === 'development' ? String(error) : undefined,
         timestamp: new Date().toISOString(),
       } as ApiResponse<null>,
       { status: 500 }
