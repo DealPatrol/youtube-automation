@@ -23,6 +23,9 @@ yarn-error.log*
 # env files
 .env*
 
+# content pipeline job artifacts (videos, images, audio, manifests)
+/content/jobs/
+
 # vercel
 .vercel
 
