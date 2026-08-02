@@ -72,8 +72,10 @@ async function renderSceneSegment(options: {
         scene.on_screen_text
       )}\n`
     )
-    const fontSize = format.aspectRatio === '9:16' ? 44 : 40
-    const margin = format.aspectRatio === '9:16' ? 150 : 100
+    // libass scales force_style values against a 288-line PlayRes grid, so
+    // sizes here are fractions of 288, not pixels (11/288 ≈ 73px at 1920-tall)
+    const fontSize = format.aspectRatio === '9:16' ? 11 : 15
+    const margin = format.aspectRatio === '9:16' ? 42 : 24
     videoFilter += `,subtitles=filename='${escapeSubtitleFilterPath(
       overlayPath
     )}':force_style='FontSize=${fontSize},PrimaryColour=&H00FFFFFF,BackColour=&H99000000,BorderStyle=3,Outline=1,Shadow=0,Alignment=2,MarginV=${margin}'`
