@@ -84,6 +84,70 @@ async function generateWithFal(
   }
 }
 
+const OPENAI_IMAGE_SIZES: Record<VideoAspectRatio, string> = {
+  '16:9': '1536x1024',
+  '9:16': '1024x1536',
+}
+
+async function generateWithOpenAI(
+  prompt: string,
+  aspectRatio: VideoAspectRatio,
+  outFile: string,
+  assetId: string
+): Promise<ImageResult | null> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  if (!apiKey) return null
+  const model = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1'
+  const fullPrompt = `${prompt}. Cinematic photograph, high quality, professional video production still. No text or captions in the image.`
+  try {
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        prompt: fullPrompt,
+        size: OPENAI_IMAGE_SIZES[aspectRatio],
+        n: 1,
+        ...(model.startsWith('dall-e') ? { response_format: 'b64_json' } : {}),
+      }),
+    })
+    if (!response.ok) {
+      console.warn('[images] OpenAI image generation failed:', response.status, (await response.text()).slice(0, 300))
+      return null
+    }
+    const data = await response.json()
+    const first = data?.data?.[0]
+    if (first?.b64_json) {
+      await fs.promises.writeFile(outFile, Buffer.from(first.b64_json, 'base64'))
+    } else if (first?.url) {
+      await downloadToFile(first.url, outFile)
+    } else {
+      return null
+    }
+    return {
+      file: outFile,
+      rights: {
+        assetId,
+        file: outFile,
+        type: 'image',
+        provider: `openai-images/${model}`,
+        license: 'AI-generated image (OpenAI usage terms)',
+        licenseUrl: 'https://openai.com/policies/terms-of-use/',
+        prompt: fullPrompt,
+        model,
+        generatedByAI: true,
+        retrievedAt: new Date().toISOString(),
+      },
+    }
+  } catch (error) {
+    console.warn('[images] OpenAI image generation error:', error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
 /** Reduce a visual description to a short stock-photo search query. */
 export function buildStockQuery(visualDescription: string): string {
   return visualDescription
@@ -220,6 +284,9 @@ export async function acquireSceneImage(options: {
 
   const generated = await generateWithFal(visualDescription, aspectRatio, outFile, assetId)
   if (generated) return generated
+
+  const openaiGenerated = await generateWithOpenAI(visualDescription, aspectRatio, outFile, assetId)
+  if (openaiGenerated) return openaiGenerated
 
   const stock = await fetchFromPexels(visualDescription, aspectRatio, outFile, assetId)
   if (stock) return stock
