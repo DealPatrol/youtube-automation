@@ -130,7 +130,7 @@ export async function getFileMetadata(fileName: string): Promise<Record<string, 
 
     const file = data?.find((f) => f.name === fileName.split('/').pop());
 
-    return file || null;
+    return file ? Object.fromEntries(Object.entries(file)) : null;
   } catch (error) {
     console.error('[v0] Storage metadata error:', error);
     return null;
