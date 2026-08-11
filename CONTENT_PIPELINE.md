@@ -71,6 +71,38 @@ Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
 
+## Plan Drive-sourced motivation Shorts
+
+For existing motivation videos from Google Drive, export or create a small manifest
+of the clips you own or have rights to use, then generate a review plan:
+
+```bash
+npm run pipeline -- motivation-plan --manifest drive-videos.json \
+  --channel "Daily Motivation" --privacy private --per-week 5
+```
+
+Example `drive-videos.json`:
+
+```json
+{
+  "videos": [
+    {
+      "id": "drive-file-id",
+      "name": "morning_discipline.mp4",
+      "mimeType": "video/mp4",
+      "durationSeconds": 42,
+      "webViewLink": "https://drive.google.com/file/d/drive-file-id/view",
+      "rightsOwner": "Original channel footage",
+      "topicTags": ["discipline", "morning routine"]
+    }
+  ]
+}
+```
+
+The command prints titles, descriptions, hashtags, review flags, and a posting
+cadence. It does not auto-publish; keep planned uploads private/unlisted until
+rights, clipping, captions, and channel fit are reviewed.
+
 ## Rights manifest
 
 Every image, narration track, and thumbnail gets a `RightsRecord` (provider,

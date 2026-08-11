@@ -1,11 +1,14 @@
 import 'dotenv/config'
 
+import * as fs from 'fs'
+
 import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
 import type { PipelineConfig } from '@/lib/pipeline/types'
 import { resolveContentPlatform } from '@/lib/content/generation'
+import { buildMotivationShortsPlan, type DriveVideoCandidate } from '@/lib/pipeline/motivation-shorts'
 
 /**
  * Content pipeline CLI.
@@ -16,6 +19,7 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
+ *   npm run pipeline -- motivation-plan --manifest drive-videos.json
  *   npm run pipeline -- status [jobId] | list | trends | auth
  */
 
@@ -70,6 +74,14 @@ function printJobSummary(job: Awaited<ReturnType<typeof loadJob>>): void {
   if (job.rights) console.log(`  rights:   ${job.rights.manifestFile} (${job.rights.assetCount} assets)`)
   if (job.publish) console.log(`  youtube:  ${job.publish.url} (${job.publish.privacy})`)
   if (job.error) console.log(`  error:    ${job.error}`)
+}
+
+async function loadDriveVideoManifest(manifestFile: string): Promise<DriveVideoCandidate[]> {
+  const raw = await fs.promises.readFile(manifestFile, 'utf8')
+  const parsed = JSON.parse(raw) as DriveVideoCandidate[] | { videos?: DriveVideoCandidate[] }
+  if (Array.isArray(parsed)) return parsed
+  if (Array.isArray(parsed.videos)) return parsed.videos
+  throw new Error('Drive manifest must be an array or an object with a videos array')
 }
 
 async function main() {
@@ -152,6 +164,25 @@ async function main() {
       }
       break
     }
+    case 'motivation-plan': {
+      const manifest = typeof flags.manifest === 'string' ? flags.manifest : undefined
+      if (!manifest) {
+        throw new Error('Usage: pipeline motivation-plan --manifest drive-videos.json')
+      }
+      const privacy = typeof flags.privacy === 'string' ? flags.privacy : undefined
+      if (privacy && !['private', 'unlisted', 'public'].includes(privacy)) {
+        throw new Error(`Invalid --privacy "${privacy}"`)
+      }
+      const videos = await loadDriveVideoManifest(manifest)
+      const plan = buildMotivationShortsPlan(videos, {
+        channelName: typeof flags.channel === 'string' ? flags.channel : undefined,
+        videosPerWeek: typeof flags['per-week'] === 'string' ? Number(flags['per-week']) : undefined,
+        startDate: typeof flags.start === 'string' ? flags.start : undefined,
+        privacy: privacy as PipelineConfig['privacy'] | undefined,
+      })
+      console.log(JSON.stringify(plan, null, 2))
+      break
+    }
     case 'auth': {
       await runAuthFlow()
       break
@@ -170,6 +201,8 @@ Usage:
   npm run pipeline -- status [jobId]
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
+  npm run pipeline -- motivation-plan --manifest drive-videos.json
+                                            plan Drive-sourced motivation Shorts
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
 
 Flags on create:
