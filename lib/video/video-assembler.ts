@@ -69,16 +69,15 @@ export class VideoAssembler {
    */
   private getResolutionForFormat(format: VideoFormat): string {
     switch (format) {
-      case 'youtube-long':
-      case 'youtube-shorts':
-        return '1920x1080'; // 1080p for YouTube
-      case 'tiktok':
-      case 'instagram-reels':
+      case 'short':
         return '1080x1920'; // Vertical 9:16
-      case 'youtube-thumbnail':
-        return '1280x720'; // 720p
+      case 'long-form':
+      case 'true-crime':
+      case 'tutorial':
+        return '1920x1080'; // 1080p for YouTube
       default:
-        return '1920x1080';
+        const exhaustive: never = format;
+        return exhaustive;
     }
   }
 
