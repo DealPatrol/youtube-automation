@@ -75,9 +75,10 @@ export class VideoAssembler {
       case 'true-crime':
       case 'tutorial':
         return '1920x1080'; // 1080p for YouTube
-      default:
+      default: {
         const exhaustive: never = format;
         return exhaustive;
+      }
     }
   }
 
