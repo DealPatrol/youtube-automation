@@ -10,6 +10,26 @@ export type CompetitionLevel = 'low' | 'medium' | 'high';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+export interface ScriptSceneJson {
+  title: string;
+  duration_seconds: number;
+  voiceover?: string;
+  voiceover_text?: string;
+  broll_notes?: string;
+  broll_suggestions?: string[];
+  on_screen_text?: string[];
+  [key: string]: unknown;
+}
+
+export interface ScriptJson {
+  title?: string;
+  scenes?: ScriptSceneJson[];
+  steps?: ScriptSceneJson[];
+  total_duration?: number;
+  total_duration_seconds?: number;
+  [key: string]: unknown;
+}
+
 // Script table
 export interface Script {
   id: string;
@@ -17,15 +37,7 @@ export interface Script {
   topic: string;
   format: VideoFormat;
   script_text: string | null;
-  script_json: {
-    scenes?: Array<{
-      title: string;
-      duration_seconds: number;
-      voiceover_text: string;
-      broll_notes: string;
-    }>;
-    total_duration?: number;
-  } | null;
+  script_json: ScriptJson | null;
   duration_seconds: number | null;
   ai_model: string;
   trending_angle: string | null;
