@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     try {
       console.log('[v0] Starting video assembly for video:', video.id);
 
-      const assemblyResult = await videoAssembler.assembleVideo({
+      const assemblyResult = await videoAssembler.assemble({
         voiceover_url: voiceover.audio_url,
         voiceover_duration: voiceover.duration_seconds || 60,
         format: script.format || 'long-form',
