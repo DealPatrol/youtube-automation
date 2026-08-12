@@ -4,6 +4,11 @@ import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
+import {
+  buildDriveShortsOptions,
+  publishDriveShortsFromGoogleDrive,
+  runDriveShortsAuthFlow,
+} from '@/lib/pipeline/drive-shorts'
 import type { PipelineConfig } from '@/lib/pipeline/types'
 import { resolveContentPlatform } from '@/lib/content/generation'
 
@@ -156,6 +161,28 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveShortsAuthFlow()
+      break
+    }
+    case 'drive-shorts': {
+      const options = buildDriveShortsOptions(flags)
+      const results = await publishDriveShortsFromGoogleDrive(options)
+      if (results.length === 0) {
+        console.log('No matching Drive videos found.')
+        break
+      }
+      for (const result of results) {
+        console.log(`\n${result.candidate.name}`)
+        console.log(`  drive:    ${result.candidate.webViewLink || result.candidate.id}`)
+        if (result.jobId) console.log(`  job:      ${result.jobId}`)
+        if (result.videoFile) console.log(`  video:    ${result.videoFile}`)
+        if (result.rightsManifestFile) console.log(`  rights:   ${result.rightsManifestFile}`)
+        if (result.youtubeUrl) console.log(`  youtube:  ${result.youtubeUrl}`)
+        if (result.skippedPublishReason) console.log(`  publish:  skipped (${result.skippedPublishReason})`)
+      }
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +198,22 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time Drive + YouTube OAuth
+  npm run pipeline -- drive-shorts [--query motivation] [--folderId ...]
+                             [--fileId id1,id2] [--limit 1] [--dryRun]
+                             [--publish] [--privacy private|unlisted|public]
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Flags on drive-shorts:
+  --query        Search Drive video names/full text (default: motivation)
+  --folderId     Restrict search to a Drive folder
+  --fileId       Import explicit Drive file id(s), comma-separated
+  --dryRun       Preview matches without downloading or creating jobs
+  --publish      Upload imported videos to YouTube; otherwise create local jobs only
 `)
     }
   }

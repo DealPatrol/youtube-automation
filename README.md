@@ -19,6 +19,23 @@ npm run pipeline -- create --minutes 1 --aspect 9:16
 See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for setup (only
 `OPENAI_API_KEY` is required to start) and all commands.
 
+## Publish motivation Shorts from Google Drive
+
+To turn existing motivation videos in Google Drive into YouTube Shorts jobs:
+
+```bash
+npm run pipeline -- drive-auth
+npm run pipeline -- drive-shorts --query motivation --dryRun
+npm run pipeline -- drive-shorts --query motivation --limit 1 --publish --privacy private
+```
+
+`drive-shorts` defaults to `private` uploads and requires `--publish` before it
+will upload anything. See `CONTENT_PIPELINE.md` for Drive scopes and options.
+
+Audience-growth automation should stay on the research/content side: identify
+topics and communities that respond well, then publish strong Shorts and engage
+manually. Do not automate follow/like/subscribe loops.
+
 ## Standard package manager
 
 This repo is now standardized on **npm**.

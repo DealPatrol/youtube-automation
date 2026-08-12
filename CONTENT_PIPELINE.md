@@ -71,6 +71,59 @@ Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
 
+## Google Drive motivation Shorts
+
+If you already have motivation clips in Google Drive, use the Drive importer to
+create local pipeline jobs and optionally upload them as YouTube Shorts:
+
+```bash
+# One-time OAuth. This requests Drive read-only and YouTube upload scopes.
+npm run pipeline -- drive-auth
+
+# Preview matching Drive videos without downloading or uploading.
+npm run pipeline -- drive-shorts --query motivation --dryRun
+
+# Import one matching video, write a rights manifest, and upload privately.
+npm run pipeline -- drive-shorts --query motivation --limit 1 --publish --privacy private
+```
+
+Useful options:
+
+| Flag | Purpose |
+|---|---|
+| `--query motivation` | Search Drive video names/full text. Defaults to `motivation`. |
+| `--folderId <id>` | Restrict search to one Drive folder. |
+| `--fileId id1,id2` | Import explicit Drive file IDs instead of searching. |
+| `--limit 1` | Process up to 10 videos per run. Defaults to 1. |
+| `--dryRun` | Preview matches only. |
+| `--publish` | Upload to YouTube. Without it, only local jobs are created. |
+| `--privacy private` | Upload privacy: `private`, `unlisted`, or `public`. Defaults to `private`. |
+| `--license "..."` | Rights note for the Drive asset. |
+| `--aiDisclosure` | Mark the imported clip as AI-generated for YouTube disclosure. |
+
+`drive-auth` prints a refresh token. Store it as `YOUTUBE_REFRESH_TOKEN` and
+`GOOGLE_DRIVE_REFRESH_TOKEN` in `.env`. The same token must have both Drive
+read-only and YouTube upload scopes if you want `--publish` to work in one run.
+
+Only import videos you own or have permission to publish. The importer records a
+rights manifest under each job directory and keeps uploads private by default so
+you can review the result before making it public.
+
+## Audience growth workflow
+
+The repository intentionally does not automate follow/like/subscribe loops.
+Those patterns can look like spam and can violate platform rules, especially on
+brand-new accounts. Use automation for research and content operations instead:
+
+1. Run `npm run pipeline -- trends` to find active topics from YouTube, Google
+   Trends, and X.
+2. Prefer AI/motivation topics where replies and comments show genuine questions
+   or requests for recommendations.
+3. Publish helpful Shorts with a clear prompt for discussion, then reply manually
+   to viewers who engage.
+4. Track which topics earn saves, comments, and subscribers; create follow-up
+   clips from those signals.
+
 ## Rights manifest
 
 Every image, narration track, and thumbnail gets a `RightsRecord` (provider,
