@@ -98,7 +98,7 @@ export class YouTubeUploader {
           },
         },
         {
-          onUploadProgress: (event) => {
+          onUploadProgress: (event: { bytesProcessed: number; totalBytes?: number }) => {
             const bytesUploaded = event.bytesProcessed;
             const totalBytes = event.totalBytes || 0;
             const progress = (bytesUploaded / totalBytes) * 100;

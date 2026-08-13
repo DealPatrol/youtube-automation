@@ -3,6 +3,7 @@ import 'dotenv/config'
 import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
+import { runDriveAuthFlow, runDriveShortsFlow } from '@/lib/pipeline/drive-shorts'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
 import type { PipelineConfig } from '@/lib/pipeline/types'
 import { resolveContentPlatform } from '@/lib/content/generation'
@@ -16,7 +17,8 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
- *   npm run pipeline -- status [jobId] | list | trends | auth
+ *   npm run pipeline -- drive-shorts [--query motivation] [--dry-run]
+ *   npm run pipeline -- status [jobId] | list | trends | auth | drive-auth
  */
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -156,6 +158,14 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveAuthFlow()
+      break
+    }
+    case 'drive-shorts': {
+      await runDriveShortsFlow(flags)
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +181,24 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time Drive OAuth (read-only refresh token)
+  npm run pipeline -- drive-shorts [flags]   stage Drive videos as YouTube Shorts
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Flags on drive-shorts:
+  --query motivation       Drive filename search term (default: motivation)
+  --folder <folderId>      Restrict search to a Drive folder
+  --limit 3                Number of Shorts jobs to stage (max 20)
+  --dry-run                Preview matching videos only (default)
+  --stage                  Download and stage local jobs without publishing
+  --publish                Upload after staging when YouTube credentials exist
+  --privacy private        private | unlisted | public (default: private)
+  --confirm-rights         Required for staging/publishing Drive videos
+  --allow-landscape        Do not filter out landscape videos
 `)
     }
   }

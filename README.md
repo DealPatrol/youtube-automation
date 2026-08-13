@@ -19,6 +19,19 @@ npm run pipeline -- create --minutes 1 --aspect 9:16
 See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for setup (only
 `OPENAI_API_KEY` is required to start) and all commands.
 
+## Stage motivation Shorts from Google Drive
+
+Owned or licensed Drive videos can be staged as Shorts jobs with a rights manifest:
+
+```bash
+npm run pipeline -- drive-auth
+npm run pipeline -- drive-shorts --query motivation --dry-run
+npm run pipeline -- drive-shorts --query motivation --stage --confirm-rights
+```
+
+Add `--publish --privacy private --confirm-rights` to upload through the existing
+YouTube OAuth pipeline after local staging.
+
 ## Standard package manager
 
 This repo is now standardized on **npm**.
