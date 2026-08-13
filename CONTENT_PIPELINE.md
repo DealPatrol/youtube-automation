@@ -58,6 +58,7 @@ npm run pipeline -- create --auto --privacy unlisted
 | `YOUTUBE_API_KEY` | 1 | Real YouTube trending chart for topic discovery |
 | `X_BEARER_TOKEN` | 1 | X hashtag trend aggregation |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_REFRESH_TOKEN` | 7 | Publishing |
+| `GOOGLE_DRIVE_REFRESH_TOKEN` | Drive Shorts | Read-only Google Drive video ingestion |
 
 ## YouTube publishing setup (one time, ~5 min)
 
@@ -70,6 +71,33 @@ npm run pipeline -- create --auto --privacy unlisted
 Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
+
+## Google Drive motivation Shorts
+
+If you already have owned or licensed motivation clips in Google Drive, the CLI can
+stage them as YouTube Shorts jobs without regenerating the video:
+
+```bash
+# One-time Drive read-only OAuth. Reuses YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET
+# unless GOOGLE_DRIVE_CLIENT_ID/GOOGLE_DRIVE_CLIENT_SECRET are set.
+npm run pipeline -- drive-auth
+
+# Preview matching Drive videos. This is the default; it does not download or upload.
+npm run pipeline -- drive-shorts --query motivation --dry-run
+
+# Stage up to three vertical clips locally with a rights manifest.
+npm run pipeline -- drive-shorts --query motivation --stage --confirm-rights
+
+# Publish after staging. Defaults to private to keep channel review in the loop.
+npm run pipeline -- drive-shorts --query motivation --publish --privacy private --confirm-rights
+```
+
+The command only searches Drive filenames, defaults to `motivation`, filters out
+videos longer than 180 seconds, and skips landscape files unless
+`--allow-landscape` is provided. Staging or publishing requires
+`--confirm-rights`; only use clips you own or have permission to upload. Published
+jobs use the same YouTube OAuth, rights-manifest, privacy, and synthetic-media
+guards as the generated-video pipeline.
 
 ## Rights manifest
 
