@@ -63,6 +63,7 @@ npm run pipeline -- create --auto --privacy unlisted
 
 1. In Google Cloud Console, create an OAuth client (type: Web application) with
    redirect URI `http://localhost:8787/callback`, and enable the **YouTube Data API v3**.
+   Enable the **Google Drive API** too if you want to import existing videos from Drive.
 2. Put `YOUTUBE_CLIENT_ID` and `YOUTUBE_CLIENT_SECRET` in `.env`.
 3. Run `npm run pipeline -- auth`, authorize your channel in the browser, and copy
    the printed `YOUTUBE_REFRESH_TOKEN` into `.env`.
@@ -70,6 +71,34 @@ npm run pipeline -- create --auto --privacy unlisted
 Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
+
+## Publish motivation Shorts from Google Drive
+
+The Drive workflow is dry-run by default. It lists recent matching video files
+without downloading or uploading anything:
+
+```bash
+npm run pipeline -- drive-auth
+npm run pipeline -- drive-shorts --query motivation --max 5
+```
+
+To publish the newest matching Drive video as a private YouTube Short, confirm
+you own or have upload rights for the media:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --publish --rights-confirmed
+```
+
+Useful options:
+
+- `--folder <GOOGLE_DRIVE_FOLDER_ID>` restricts selection to one Drive folder.
+- `--privacy private|unlisted|public` defaults to `private`.
+- `--max <n>` uploads up to `n` matching videos; publish mode defaults to `1`.
+- `--license "..."` records the rights basis in a local manifest.
+- `--synthetic` marks the upload as containing realistic AI/synthetic media.
+
+Publishing refuses to run without YouTube OAuth env, Drive read scope, and
+`--rights-confirmed`.
 
 ## Rights manifest
 

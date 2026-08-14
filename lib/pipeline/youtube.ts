@@ -22,6 +22,7 @@ function resolveClientCredentials(): { clientId: string; clientSecret: string } 
 const AUTH_PORT = Number(process.env.PIPELINE_AUTH_PORT || 8787)
 const AUTH_REDIRECT = `http://localhost:${AUTH_PORT}/callback`
 const SCOPES = [
+  'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/youtube.upload',
   'https://www.googleapis.com/auth/youtube.force-ssl',
 ]
@@ -78,7 +79,7 @@ export async function runAuthFlow(): Promise<void> {
   console.log(`YOUTUBE_REFRESH_TOKEN=${tokens.refresh_token}\n`)
 }
 
-function buildAuthorizedClient() {
+export function buildGoogleOAuth2Client() {
   const { clientId, clientSecret } = resolveClientCredentials()
   const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN?.trim()
   if (!refreshToken) {
@@ -86,7 +87,11 @@ function buildAuthorizedClient() {
   }
   const oauth2 = new google.auth.OAuth2(clientId, clientSecret, AUTH_REDIRECT)
   oauth2.setCredentials({ refresh_token: refreshToken })
-  return google.youtube({ version: 'v3', auth: oauth2 })
+  return oauth2
+}
+
+function buildAuthorizedClient() {
+  return google.youtube({ version: 'v3', auth: buildGoogleOAuth2Client() })
 }
 
 export function isPublishConfigured(): boolean {
@@ -184,5 +189,53 @@ export async function publishToYouTube(options: {
     publishedAt: new Date().toISOString(),
     captionsUploaded,
     thumbnailSet,
+  }
+}
+
+export async function publishVideoFileToYouTube(options: {
+  videoFile: string
+  title: string
+  description: string
+  tags: string[]
+  privacy: 'private' | 'unlisted' | 'public'
+  containsSyntheticMedia: boolean
+}): Promise<NonNullable<PipelineJob['publish']>> {
+  if (!fs.existsSync(options.videoFile)) {
+    throw new Error(`Video file not found: ${options.videoFile}`)
+  }
+
+  const youtube = buildAuthorizedClient()
+  console.log(`[publish] Uploading "${options.title}" (${options.privacy}) ...`)
+  const insertResponse = await youtube.videos.insert({
+    part: ['snippet', 'status'],
+    requestBody: {
+      snippet: {
+        title: options.title,
+        description: options.description,
+        tags: options.tags,
+        categoryId: '22', // People & Blogs
+        defaultLanguage: 'en',
+      },
+      status: {
+        privacyStatus: options.privacy,
+        selfDeclaredMadeForKids: false,
+        containsSyntheticMedia: options.containsSyntheticMedia,
+      },
+    },
+    media: { body: fs.createReadStream(options.videoFile) },
+  })
+
+  const videoId = insertResponse.data.id
+  if (!videoId) throw new Error('YouTube upload did not return a video id')
+  const url = `https://www.youtube.com/watch?v=${videoId}`
+  console.log(`[publish] Uploaded: ${url}`)
+
+  return {
+    videoId,
+    url,
+    privacy: options.privacy,
+    publishedAt: new Date().toISOString(),
+    captionsUploaded: false,
+    thumbnailSet: false,
   }
 }
