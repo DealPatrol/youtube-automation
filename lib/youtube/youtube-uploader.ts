@@ -1,6 +1,11 @@
 import { google } from 'googleapis';
 import * as fs from 'fs/promises';
 
+type UploadProgressEvent = {
+  bytesProcessed: number;
+  totalBytes?: number;
+};
+
 /**
  * YouTube uploader service
  * Handles OAuth2 flow and video uploads to YouTube
@@ -98,7 +103,7 @@ export class YouTubeUploader {
           },
         },
         {
-          onUploadProgress: (event) => {
+          onUploadProgress: (event: UploadProgressEvent) => {
             const bytesUploaded = event.bytesProcessed;
             const totalBytes = event.totalBytes || 0;
             const progress = (bytesUploaded / totalBytes) * 100;

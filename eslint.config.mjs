@@ -14,6 +14,7 @@ export default tseslint.config(
       'workers/**',
       'storage/**',
       'scripts/**',
+      'lib/db/database.types.ts',
     ],
   },
   js.configs.recommended,
