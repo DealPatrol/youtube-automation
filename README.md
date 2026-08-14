@@ -19,6 +19,25 @@ npm run pipeline -- create --minutes 1 --aspect 9:16
 See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for setup (only
 `OPENAI_API_KEY` is required to start) and all commands.
 
+## Publish motivation Shorts from Google Drive
+
+The Drive importer is dry-run by default:
+
+```bash
+npm run pipeline -- drive-auth
+npm run pipeline -- drive-shorts --query motivation --max 5
+```
+
+To upload the newest matching Drive video to YouTube as a private Short:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --publish --rights-confirmed
+```
+
+Use `--folder <GOOGLE_DRIVE_FOLDER_ID>` to restrict the search to one Drive
+folder. See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for OAuth, rights,
+privacy, and synthetic-media disclosure details.
+
 ## Standard package manager
 
 This repo is now standardized on **npm**.

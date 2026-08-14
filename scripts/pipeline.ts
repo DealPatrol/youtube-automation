@@ -4,6 +4,7 @@ import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
+import { runDriveShorts } from '@/lib/pipeline/drive-shorts'
 import type { PipelineConfig } from '@/lib/pipeline/types'
 import { resolveContentPlatform } from '@/lib/content/generation'
 
@@ -16,7 +17,8 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
- *   npm run pipeline -- status [jobId] | list | trends | auth
+ *   npm run pipeline -- drive-shorts --query motivation [--publish --rights-confirmed]
+ *   npm run pipeline -- status [jobId] | list | trends | auth | drive-auth
  */
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -61,6 +63,22 @@ function buildConfig(flags: Record<string, string | boolean>): PipelineConfig {
   }
 }
 
+function parsePrivacy(value: string | boolean | undefined, fallback: 'private' | 'unlisted' | 'public'): 'private' | 'unlisted' | 'public' {
+  const privacy = typeof value === 'string' ? value : fallback
+  if (!['private', 'unlisted', 'public'].includes(privacy)) {
+    throw new Error(`Invalid --privacy "${privacy}" (use private | unlisted | public)`)
+  }
+  return privacy as 'private' | 'unlisted' | 'public'
+}
+
+function parsePositiveInteger(value: string | boolean | undefined, fallback: number): number {
+  const parsed = typeof value === 'string' ? Number(value) : fallback
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`Expected a positive integer, received "${String(value)}"`)
+  }
+  return parsed
+}
+
 function printJobSummary(job: Awaited<ReturnType<typeof loadJob>>): void {
   console.log(`\n${job.id}  [${job.status}]`)
   console.log(`  topic:    ${job.trends?.selected.topic || job.config.topic || '(pending)'}`)
@@ -102,11 +120,8 @@ async function main() {
     case 'publish': {
       const jobId = positional[0]
       if (!jobId) throw new Error('Usage: pipeline publish <jobId> [--privacy public]')
-      const privacy = typeof flags.privacy === 'string' ? flags.privacy : undefined
-      if (privacy && !['private', 'unlisted', 'public'].includes(privacy)) {
-        throw new Error(`Invalid --privacy "${privacy}"`)
-      }
-      const job = await publishJob(jobId, privacy as 'private' | 'unlisted' | 'public' | undefined)
+      const privacy = typeof flags.privacy === 'string' ? parsePrivacy(flags.privacy, 'unlisted') : undefined
+      const job = await publishJob(jobId, privacy)
       printJobSummary(job)
       break
     }
@@ -156,6 +171,32 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runAuthFlow()
+      break
+    }
+    case 'drive-shorts': {
+      const query = typeof flags.query === 'string' ? flags.query : 'motivation'
+      const publish = Boolean(flags.publish)
+      const results = await runDriveShorts({
+        query,
+        folderId: typeof flags.folder === 'string' ? flags.folder : process.env.GOOGLE_DRIVE_FOLDER_ID,
+        maxResults: parsePositiveInteger(flags.max, publish ? 1 : 5),
+        privacy: parsePrivacy(flags.privacy, 'private'),
+        publish,
+        rightsConfirmed: Boolean(flags['rights-confirmed']),
+        license:
+          typeof flags.license === 'string'
+            ? flags.license
+            : 'User-provided content; rights confirmed by channel owner.',
+        containsSyntheticMedia: Boolean(flags.synthetic) || Boolean(flags['ai-generated']),
+        titlePrefix: typeof flags['title-prefix'] === 'string' ? flags['title-prefix'] : undefined,
+      })
+      for (const result of results.filter((item) => item.youtube)) {
+        console.log(`[drive-shorts] Published ${result.candidate.name}: ${result.youtube!.url}`)
+      }
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +212,22 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             OAuth with Drive read + YouTube upload scopes
+  npm run pipeline -- drive-shorts --query motivation [--folder DRIVE_FOLDER_ID]
+                                             list matching Drive videos (dry run by default)
+  npm run pipeline -- drive-shorts --query motivation --publish --rights-confirmed
+                                             upload newest match as a private YouTube Short
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Flags on drive-shorts:
+  --max               Number of Drive videos to list/upload (default: 5 dry-run, 1 publish)
+  --privacy           private|unlisted|public (default: private)
+  --rights-confirmed  Required before any Drive video upload
+  --synthetic         Disclose realistic synthetic/AI-generated media to YouTube
 `)
     }
   }
