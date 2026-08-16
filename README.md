@@ -16,6 +16,16 @@ human approval → FFmpeg render → rights manifest → publish:
 npm run pipeline -- create --minutes 1 --aspect 9:16
 ```
 
+To turn owned/licensed motivation clips from Google Drive into YouTube Shorts,
+authorize Drive once, preview matches, then publish privately with an explicit
+rights confirmation:
+
+```bash
+npm run pipeline -- drive-auth
+npm run pipeline -- drive-shorts --query motivation --max 5
+npm run pipeline -- drive-shorts --query motivation --max 5 --publish --rights-confirmed --privacy private
+```
+
 See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for setup (only
 `OPENAI_API_KEY` is required to start) and all commands.
 
@@ -76,6 +86,7 @@ Optional but supported:
 - `ELEVENLABS_API_KEY`
 - `X_BEARER_TOKEN`
 - `X_CONSUMER_KEY`, `X_CONSUMER_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
+- `DRIVE_CLIENT_ID`, `DRIVE_CLIENT_SECRET`, `DRIVE_REFRESH_TOKEN`
 - branding and background music variables from `.env.example`
 
 See `ENV_SETUP.md` for the full matrix and `DEPLOYMENT.md` for deployment notes.

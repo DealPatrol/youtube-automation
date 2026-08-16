@@ -3,6 +3,7 @@ import 'dotenv/config'
 import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
+import { runDriveAuthFlow, runDriveShorts } from '@/lib/pipeline/drive'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
 import type { PipelineConfig } from '@/lib/pipeline/types'
 import { resolveContentPlatform } from '@/lib/content/generation'
@@ -16,7 +17,8 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
- *   npm run pipeline -- status [jobId] | list | trends | auth
+ *   npm run pipeline -- drive-shorts --query motivation [--max 5] [--publish --rights-confirmed]
+ *   npm run pipeline -- status [jobId] | list | trends | auth | drive-auth
  */
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -156,6 +158,44 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveAuthFlow()
+      break
+    }
+    case 'drive-shorts': {
+      const privacy = String(flags.privacy || 'private')
+      if (!['private', 'unlisted', 'public'].includes(privacy)) {
+        throw new Error(`Invalid --privacy "${privacy}"`)
+      }
+      const result = await runDriveShorts({
+        query: typeof flags.query === 'string' ? flags.query : 'motivation',
+        maxResults: Number(flags.max || 5),
+        folderId: typeof flags.folder === 'string' ? flags.folder : undefined,
+        publish: Boolean(flags.publish),
+        rightsConfirmed: Boolean(flags['rights-confirmed']),
+        privacy: privacy as 'private' | 'unlisted' | 'public',
+      })
+
+      console.log('\nDrive video candidates:\n')
+      if (result.candidates.length === 0) {
+        console.log('  No matching Drive videos found.')
+      }
+      for (const candidate of result.candidates) {
+        console.log(`  ${candidate.name}  (${candidate.mimeType || 'video'}, ${candidate.id})`)
+      }
+
+      if (result.published.length > 0) {
+        console.log('\nPublished YouTube Shorts:\n')
+        for (const item of result.published) {
+          console.log(`  ${item.driveFileName} -> ${item.url} (${item.privacy})`)
+          console.log(`    rights: ${item.manifestFile}`)
+        }
+      } else if (!flags.publish) {
+        console.log('\nDry run only. To upload privately after confirming rights, run:')
+        console.log('  npm run pipeline -- drive-shorts --query motivation --publish --rights-confirmed --privacy private')
+      }
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +211,20 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time Google Drive read-only OAuth
+  npm run pipeline -- drive-shorts --query motivation [--max 5] [--folder <driveFolderId>]
+                                             list Drive videos without uploading
+  npm run pipeline -- drive-shorts --query motivation --publish --rights-confirmed
+                                             upload matching Drive videos as private Shorts
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Drive Shorts safety:
+  The Drive command defaults to dry-run and private uploads. It refuses to upload
+  without --rights-confirmed so only owned or properly licensed videos are used.
 `)
     }
   }
