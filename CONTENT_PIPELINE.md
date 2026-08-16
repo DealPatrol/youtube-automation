@@ -58,6 +58,7 @@ npm run pipeline -- create --auto --privacy unlisted
 | `YOUTUBE_API_KEY` | 1 | Real YouTube trending chart for topic discovery |
 | `X_BEARER_TOKEN` | 1 | X hashtag trend aggregation |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_REFRESH_TOKEN` | 7 | Publishing |
+| `DRIVE_CLIENT_ID` / `DRIVE_CLIENT_SECRET` / `DRIVE_REFRESH_TOKEN` | Drive Shorts | Read owned/licensed videos from Google Drive |
 
 ## YouTube publishing setup (one time, ~5 min)
 
@@ -70,6 +71,37 @@ npm run pipeline -- create --auto --privacy unlisted
 Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
+
+## Google Drive motivation Shorts
+
+For existing motivation clips in Google Drive, use the Drive Shorts command. It
+searches read-only Drive video files, defaults to a dry run, and defaults any
+upload to `private`.
+
+One-time Drive setup:
+
+```bash
+# Uses DRIVE_CLIENT_ID / DRIVE_CLIENT_SECRET, or falls back to GOOGLE_OAUTH_CLIENT_*
+npm run pipeline -- drive-auth
+# Copy the printed DRIVE_REFRESH_TOKEN into .env
+```
+
+Preview matching motivation videos:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --max 5
+```
+
+Upload only after confirming you own or have licensed the selected source videos:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --max 5 \
+  --publish --rights-confirmed --privacy private
+```
+
+Each uploaded Drive clip writes `content/drive-shorts/<date>/<fileId>-rights-manifest.json`.
+The command refuses to publish without `--rights-confirmed`, so it is suitable for
+owned/licensed videos but not for reposting unknown Drive files.
 
 ## Rights manifest
 
