@@ -1,5 +1,6 @@
 // VideoForge Database Types
 // Automatically generated from Supabase schema
+import type { Json } from './db/database.types';
 
 export type VideoFormat = 'long-form' | 'short' | 'true-crime' | 'tutorial';
 export type ScriptStatus = 'draft' | 'generating' | 'completed' | 'failed';
@@ -10,6 +11,24 @@ export type CompetitionLevel = 'low' | 'medium' | 'high';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+export interface ScriptJsonScene {
+  title: string;
+  duration_seconds: number;
+  voiceover?: string;
+  voiceover_text?: string;
+  broll_notes?: string;
+  broll_suggestions?: string[];
+  [key: string]: Json | undefined;
+}
+
+export interface ScriptJson {
+  title?: string;
+  scenes?: ScriptJsonScene[];
+  total_duration?: number;
+  total_duration_seconds?: number;
+  [key: string]: Json | undefined;
+}
+
 // Script table
 export interface Script {
   id: string;
@@ -17,15 +36,7 @@ export interface Script {
   topic: string;
   format: VideoFormat;
   script_text: string | null;
-  script_json: {
-    scenes?: Array<{
-      title: string;
-      duration_seconds: number;
-      voiceover_text: string;
-      broll_notes: string;
-    }>;
-    total_duration?: number;
-  } | null;
+  script_json: ScriptJson | null;
   duration_seconds: number | null;
   ai_model: string;
   trending_angle: string | null;
