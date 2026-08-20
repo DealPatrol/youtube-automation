@@ -19,6 +19,16 @@ npm run pipeline -- create --minutes 1 --aspect 9:16
 See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for setup (only
 `OPENAI_API_KEY` is required to start) and all commands.
 
+If you already have motivation clips in Google Drive, the same CLI can import
+them as YouTube Shorts jobs and optionally publish them privately after rights
+confirmation:
+
+```bash
+npm run pipeline -- drive-auth
+npm run pipeline -- drive-shorts --query motivation --max 5 --dry-run
+npm run pipeline -- drive-shorts --query motivation --max 5 --publish --rights-confirmed --privacy private
+```
+
 ## Standard package manager
 
 This repo is now standardized on **npm**.
