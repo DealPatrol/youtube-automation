@@ -71,6 +71,35 @@ Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
 
+## Import motivation videos from Google Drive as Shorts
+
+If you already have motivation videos in Google Drive, import them as local
+Shorts jobs instead of generating new footage:
+
+```bash
+# One-time Drive read-only OAuth. You can reuse the same Google OAuth client as
+# YouTube publishing, but Drive uses its own refresh token env var.
+npm run pipeline -- drive-auth
+
+# Download matching Drive videos into content/jobs/* as rendered 9:16 jobs.
+# This is safe by default: no publish happens unless --publish is set.
+npm run pipeline -- drive-shorts --query motivation --max 3
+
+# After reviewing a generated content/jobs/<jobId>/review.html page, confirm
+# upload rights for that imported source video and publish privately.
+npm run pipeline -- confirm-rights <jobId>
+npm run pipeline -- publish <jobId> --privacy private
+
+# Publish only after you confirm you own or have permission to upload the videos.
+# The default privacy for Drive imports is private.
+npm run pipeline -- drive-shorts --query motivation --max 3 --publish --rights-confirmed --privacy private
+```
+
+Drive imports only request `drive.readonly`, skip videos longer than 90 seconds
+by default (`--max-seconds` can adjust this), and write a rights manifest for the
+source video. Publishing is blocked unless `--rights-confirmed` records a license
+confirmation in that manifest.
+
 ## Rights manifest
 
 Every image, narration track, and thumbnail gets a `RightsRecord` (provider,
