@@ -2,6 +2,7 @@ import 'dotenv/config'
 
 import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
+import { confirmDriveImportRights, importDriveShorts, runDriveAuthFlow } from '@/lib/pipeline/drive'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
 import type { PipelineConfig } from '@/lib/pipeline/types'
@@ -16,7 +17,10 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
- *   npm run pipeline -- status [jobId] | list | trends | auth
+ *   npm run pipeline -- drive-shorts [--query motivation] [--max 3]
+ *                                      [--publish --rights-confirmed]
+ *   npm run pipeline -- confirm-rights <jobId>
+ *   npm run pipeline -- status [jobId] | list | trends | auth | drive-auth
  */
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -156,6 +160,59 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveAuthFlow()
+      break
+    }
+    case 'confirm-rights': {
+      const jobId = positional[0]
+      if (!jobId) throw new Error('Usage: pipeline confirm-rights <jobId>')
+      const job = await confirmDriveImportRights(jobId)
+      printJobSummary(job)
+      break
+    }
+    case 'drive-shorts': {
+      const query = typeof flags.query === 'string' ? flags.query : 'motivation'
+      const maxResults = Math.min(Math.max(Number(flags.max || 3), 1), 20)
+      const maxDurationSeconds = Math.min(Math.max(Number(flags['max-seconds'] || 90), 15), 300)
+      const privacy = typeof flags.privacy === 'string' ? flags.privacy : 'private'
+      if (!['private', 'unlisted', 'public'].includes(privacy)) {
+        throw new Error(`Invalid --privacy "${privacy}"`)
+      }
+
+      const publish = Boolean(flags.publish)
+      const rightsConfirmed = Boolean(flags['rights-confirmed'])
+      const result = await importDriveShorts({
+        query,
+        maxResults,
+        maxDurationSeconds,
+        privacy: privacy as PipelineConfig['privacy'],
+        publishAfterImport: publish,
+        rightsConfirmed,
+      })
+
+      if (result.jobs.length === 0) {
+        console.log(`[pipeline] No importable Drive Shorts found for query "${query}"`)
+      }
+
+      for (const job of result.jobs) {
+        console.log(`[pipeline] Imported Drive Short as job ${job.id}`)
+        if (publish && !rightsConfirmed) {
+          console.log('[pipeline] Skipping publish: rerun with --rights-confirmed after verifying upload rights.')
+        } else if (publish) {
+          printJobSummary(await publishJob(job.id, privacy as PipelineConfig['privacy']))
+        } else {
+          printJobSummary(job)
+        }
+      }
+
+      for (const skipped of result.skipped) {
+        console.log(
+          `[pipeline] Skipped ${skipped.name || skipped.id || 'Drive file'}: ${skipped.reason}`
+        )
+      }
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +228,23 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time Google Drive read-only OAuth
+  npm run pipeline -- drive-shorts [--query motivation] [--max 3]
+                                            import Drive videos as Shorts jobs
+  npm run pipeline -- confirm-rights <jobId> mark an imported Drive video publishable
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Flags on drive-shorts:
+  --query              Google Drive video search text (default: motivation)
+  --max                Max Drive videos to import, 1-20 (default: 3)
+  --max-seconds        Skip videos longer than this (default: 90)
+  --publish            Try to publish imported jobs after download
+  --rights-confirmed   Required with --publish; confirms you can upload the videos
+  --privacy            private|unlisted|public (default: private)
 `)
     }
   }
