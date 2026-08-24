@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { STRATEGY_PROMPTS } from "@/lib/ai/strategy-prompts";
 import { StrategyPrompt, StrategyFormValues } from "@/lib/types/strategy";
 import { useSession } from "@/lib/auth/use-session";
+import { getAuthUserId } from "@/lib/auth/auth-context";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Copy, Check } from "lucide-react";
 
@@ -17,6 +18,7 @@ export default function YouTubeStrategyStudioPage() {
   const [copied, setCopied] = useState<number | null>(null);
 
   const prompt = STRATEGY_PROMPTS[activePrompt];
+  const authUserId = getAuthUserId(user);
 
   const handleFieldChange = (key: string, value: string) => {
     setFormValues((prev) => ({
@@ -38,7 +40,7 @@ export default function YouTubeStrategyStudioPage() {
   };
 
   const runPrompt = async () => {
-    if (!allFieldsFilled() || !user) return;
+    if (!allFieldsFilled() || !authUserId) return;
 
     const vals = formValues[activePrompt];
     setLoading((prev) => ({ ...prev, [activePrompt]: true }));
@@ -49,7 +51,7 @@ export default function YouTubeStrategyStudioPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.id}`,
+          Authorization: `Bearer ${authUserId}`,
         },
         body: JSON.stringify({
           promptNumber: prompt.id,
