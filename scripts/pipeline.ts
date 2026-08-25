@@ -4,6 +4,7 @@ import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
+import { confirmDriveRights, importDriveShorts, runDriveAuthFlow } from '@/lib/pipeline/drive'
 import type { PipelineConfig } from '@/lib/pipeline/types'
 import { resolveContentPlatform } from '@/lib/content/generation'
 
@@ -16,7 +17,9 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
- *   npm run pipeline -- status [jobId] | list | trends | auth
+ *   npm run pipeline -- drive-shorts [--query motivation] [--max 3] [--publish]
+ *   npm run pipeline -- confirm-rights <jobId>
+ *   npm run pipeline -- status [jobId] | list | trends | auth | drive-auth
  */
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -156,6 +159,34 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveAuthFlow()
+      break
+    }
+    case 'drive-shorts': {
+      const privacy = String(flags.privacy || 'private')
+      if (!['private', 'unlisted', 'public'].includes(privacy)) {
+        throw new Error(`Invalid --privacy "${privacy}"`)
+      }
+      const max = Number(flags.max || 3)
+      const jobs = await importDriveShorts({
+        query: typeof flags.query === 'string' ? flags.query : 'motivation',
+        max: Number.isFinite(max) && max > 0 ? max : 3,
+        folderId: typeof flags.folder === 'string' ? flags.folder : undefined,
+        privacy: privacy as PipelineConfig['privacy'],
+        publish: Boolean(flags.publish),
+        rightsConfirmed: Boolean(flags['rights-confirmed']),
+      })
+      for (const job of jobs) printJobSummary(job)
+      break
+    }
+    case 'confirm-rights': {
+      const jobId = positional[0]
+      if (!jobId) throw new Error('Usage: pipeline confirm-rights <jobId>')
+      const job = await confirmDriveRights(await loadJob(jobId))
+      printJobSummary(job)
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +202,22 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time read-only Google Drive OAuth
+  npm run pipeline -- drive-shorts [--query motivation] [--max 3] [--folder <id>]
+                                             import Drive videos as private Shorts review jobs
+  npm run pipeline -- confirm-rights <jobId> confirm you can publish a Drive import
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Flags on drive-shorts:
+  --query             Search term for Drive videos (default: motivation)
+  --max               Number of videos to import (default: 3)
+  --folder            Limit search to a Google Drive folder id
+  --rights-confirmed  Confirm you own or can publish the source videos
+  --publish           Publish after import only when rights are confirmed
 `)
     }
   }

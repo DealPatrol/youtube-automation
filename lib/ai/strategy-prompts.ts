@@ -338,13 +338,13 @@ Deliver:
 **WEEKLY BATCH SYSTEM**
 How to batch 3 videos in one session? Recommended batching strategy?
 
-**RECOMMENDED TOOLS STACK** (considering \$${vals.budget} budget)
+**RECOMMENDED TOOLS STACK** (considering $${vals.budget} budget)
 - For script generation: [Tool + cost]
 - For TTS/voiceover: [Tool + cost]
 - For video editing: [Tool + cost]
 - For thumbnail design: [Tool + cost]
 - For SEO/research: [Tool + cost]
-Total monthly cost: Should be \$${vals.budget} or less
+Total monthly cost: Should be $${vals.budget} or less
 
 **AUTOMATION CHECKLIST**
 What parts can be fully automated? What needs human input?

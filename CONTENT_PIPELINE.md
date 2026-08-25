@@ -47,6 +47,37 @@ Fully hands-off (no approval gate, publishes immediately if creds exist):
 npm run pipeline -- create --auto --privacy unlisted
 ```
 
+## Import motivation videos from Google Drive as Shorts
+
+For a brand-new motivation channel, the safe workflow is to publish useful
+owned content first, not to automate subscriptions, likes, or reciprocal
+engagement. The pipeline can import videos from your Google Drive into local
+review jobs and defaults to **private** YouTube uploads:
+
+```bash
+# One-time read-only Drive authorization
+npm run pipeline -- drive-auth
+
+# Import up to 3 matching Drive videos for review (no publish yet)
+npm run pipeline -- drive-shorts --query motivation --max 3
+
+# After reviewing content/jobs/<jobId>/review.html and confirming you own
+# or can publish the source video:
+npm run pipeline -- confirm-rights <jobId>
+npm run pipeline -- publish <jobId> --privacy private
+```
+
+If the Drive and YouTube credentials are already configured, you can import and
+privately publish in one command:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --max 3 --rights-confirmed --publish --privacy private
+```
+
+Use `--folder <google-drive-folder-id>` to limit the search to one folder.
+Publishing refuses unconfirmed Drive imports because the rights manifest must
+record that you own or have permission to publish the video.
+
 ## Recommended keys for better output
 
 | Key | Stage | Effect |
@@ -58,6 +89,7 @@ npm run pipeline -- create --auto --privacy unlisted
 | `YOUTUBE_API_KEY` | 1 | Real YouTube trending chart for topic discovery |
 | `X_BEARER_TOKEN` | 1 | X hashtag trend aggregation |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_REFRESH_TOKEN` | 7 | Publishing |
+| `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` / `GOOGLE_DRIVE_REFRESH_TOKEN` | Drive import | Read-only Google Drive video search/download |
 
 ## YouTube publishing setup (one time, ~5 min)
 
@@ -70,6 +102,15 @@ npm run pipeline -- create --auto --privacy unlisted
 Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
+
+## Google Drive import setup (one time, ~5 min)
+
+1. In the same Google Cloud project, add redirect URI
+   `http://localhost:8788/callback` to the OAuth client.
+2. Reuse `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET`, or set
+   `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` separately.
+3. Run `npm run pipeline -- drive-auth`, authorize read-only Drive access, and
+   copy the printed `GOOGLE_DRIVE_REFRESH_TOKEN` into `.env`.
 
 ## Rights manifest
 
@@ -91,6 +132,8 @@ npm run pipeline -- status <jobId>    # one job in detail
 npm run pipeline -- list              # all jobs, one line each
 npm run pipeline -- resume <jobId>    # continue after a failure (stages are idempotent)
 npm run pipeline -- reject <jobId> --reason "hook is weak, retry tomorrow's trend"
+npm run pipeline -- drive-shorts --query motivation --max 3
+npm run pipeline -- confirm-rights <jobId>
 ```
 
 Each job directory contains:
