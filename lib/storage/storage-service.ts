@@ -2,6 +2,15 @@
 
 import { getSupabaseServerClient } from '../db/supabase-client';
 
+interface StorageFileMetadata {
+  name: string;
+  id?: string;
+  updated_at?: string;
+  created_at?: string;
+  last_accessed_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
 /**
  * Upload audio file to Supabase Storage
  * Uses the 'videos' bucket (configured in .env)
@@ -117,7 +126,7 @@ export async function deleteFromStorage(fileName: string): Promise<void> {
 /**
  * Get file metadata from storage
  */
-export async function getFileMetadata(fileName: string): Promise<Record<string, unknown> | null> {
+export async function getFileMetadata(fileName: string): Promise<StorageFileMetadata | null> {
   try {
     const supabase = getSupabaseServerClient();
     const bucketName = process.env.SUPABASE_STORAGE_BUCKET || 'videos';

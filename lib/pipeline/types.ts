@@ -87,6 +87,13 @@ export interface PipelineJob {
   thumbnailFile?: string
   captions?: { srtFile: string; vttFile: string }
   rightsRecords: RightsRecord[]
+  source?: {
+    provider: 'google-drive'
+    fileId: string
+    fileName: string
+    mimeType: string
+    webViewLink?: string
+  }
   approval?: { reviewFile: string; approvedAt?: string; rejectedAt?: string; reason?: string }
   render?: { videoFile: string; durationSeconds: number; width: number; height: number }
   rights?: { manifestFile: string; assetCount: number; aiDisclosure: boolean }

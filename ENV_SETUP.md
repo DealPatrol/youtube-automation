@@ -67,12 +67,19 @@ Notes:
 YOUTUBE_CLIENT_ID=
 YOUTUBE_CLIENT_SECRET=
 YOUTUBE_ACCESS_TOKEN=
+YOUTUBE_REFRESH_TOKEN=
+GOOGLE_DRIVE_CLIENT_ID=
+GOOGLE_DRIVE_CLIENT_SECRET=
+GOOGLE_DRIVE_REFRESH_TOKEN=
 ENABLE_YOUTUBE_CAPTIONS=true
 ```
 
 Notes:
 - `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `NEXTAUTH_URL` are required for OAuth callback and direct upload routes.
 - `YOUTUBE_ACCESS_TOKEN` is only needed for the cron upload route's current service-token flow.
+- `YOUTUBE_REFRESH_TOKEN` is used by `npm run pipeline -- publish`; obtain it with `npm run pipeline -- auth`.
+- `GOOGLE_DRIVE_REFRESH_TOKEN` is used by `npm run pipeline -- drive-shorts`; obtain it with `npm run pipeline -- drive-auth`.
+- `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` are optional when you reuse the YouTube OAuth client credentials.
 - `ENABLE_YOUTUBE_CAPTIONS=false` disables caption uploads.
 
 ## 5. Scheduled jobs and X integration
