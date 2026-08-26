@@ -41,6 +41,8 @@ export interface RightsRecord {
   prompt?: string
   model?: string
   generatedByAI: boolean
+  /** Required for private/user-provided assets before upload leaves local review. */
+  publicationRightsConfirmed?: boolean
   retrievedAt: string
 }
 

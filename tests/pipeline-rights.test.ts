@@ -31,6 +31,18 @@ test('attribution text is empty for fully self-produced assets', () => {
   assert.equal(buildAttributionText([record({})]), '')
 })
 
+test('attribution text discloses owner-provided Drive media', () => {
+  const text = buildAttributionText([
+    record({
+      assetId: 'drive-video-1',
+      type: 'video',
+      provider: 'google-drive',
+      publicationRightsConfirmed: true,
+    }),
+  ])
+  assert.ok(text.includes('owner-provided Google Drive media'))
+})
+
 function manifest(assets: RightsRecord[]): RightsManifest {
   return {
     jobId: 'test',
@@ -49,4 +61,26 @@ test('publishing is refused without assets or with unlicensed assets', () => {
     /without license info/
   )
   assert.doesNotThrow(() => assertPublishable(manifest([record({})])))
+})
+
+test('publishing Drive media requires explicit rights confirmation', () => {
+  const driveRecord = record({
+    assetId: 'drive-video-1',
+    type: 'video',
+    provider: 'google-drive',
+    license: 'RIGHTS_CONFIRMATION_REQUIRED',
+  })
+
+  assert.throws(() => assertPublishable(manifest([driveRecord])), /rights must be confirmed/)
+  assert.doesNotThrow(() =>
+    assertPublishable(
+      manifest([
+        {
+          ...driveRecord,
+          license: 'User-confirmed owned/licensed media',
+          publicationRightsConfirmed: true,
+        },
+      ])
+    )
+  )
 })

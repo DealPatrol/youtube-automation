@@ -2,6 +2,7 @@ import 'dotenv/config'
 
 import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
+import { confirmDriveRights, importDriveShorts, runDriveAuthFlow } from '@/lib/pipeline/drive'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
 import type { PipelineConfig } from '@/lib/pipeline/types'
@@ -16,7 +17,9 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
- *   npm run pipeline -- status [jobId] | list | trends | auth
+ *   npm run pipeline -- drive-shorts [--query motivation] [--max 3]
+ *   npm run pipeline -- confirm-rights <jobId>
+ *   npm run pipeline -- status [jobId] | list | trends | auth | drive-auth
  */
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -156,6 +159,49 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveAuthFlow()
+      break
+    }
+    case 'drive-shorts': {
+      const publish = Boolean(flags.publish)
+      const rightsConfirmed = Boolean(flags['rights-confirmed'])
+      const privacy =
+        typeof flags.privacy === 'string' && ['private', 'unlisted', 'public'].includes(flags.privacy)
+          ? (flags.privacy as PipelineConfig['privacy'])
+          : 'private'
+      const jobs = await importDriveShorts({
+        query: typeof flags.query === 'string' ? flags.query : 'motivation',
+        maxResults: Number(flags.max || 3),
+        maxSeconds: Number(flags['max-seconds'] || 60),
+        privacy,
+        rightsConfirmed,
+        publish,
+      })
+      for (const job of jobs) {
+        printJobSummary(job)
+      }
+      if (publish && rightsConfirmed) {
+        for (const job of jobs) {
+          await confirmDriveRights(job.id)
+          printJobSummary(await approveAndFinish(job.id))
+        }
+      } else if (publish) {
+        console.log('\n[pipeline] Publish requested but Drive rights are not confirmed.')
+        console.log('[pipeline] Review each job, then run:')
+        for (const job of jobs) {
+          console.log(`[pipeline]   npm run pipeline -- confirm-rights ${job.id}`)
+          console.log(`[pipeline]   npm run pipeline -- approve ${job.id}`)
+        }
+      }
+      break
+    }
+    case 'confirm-rights': {
+      const jobId = positional[0]
+      if (!jobId) throw new Error('Usage: pipeline confirm-rights <jobId>')
+      printJobSummary(await confirmDriveRights(jobId))
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +217,23 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time Google Drive read-only OAuth
+  npm run pipeline -- drive-shorts [--query motivation] [--max 3]
+                                             import Drive videos as private Shorts jobs
+  npm run pipeline -- confirm-rights <jobId> confirm rights for Drive-sourced media
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Flags on drive-shorts:
+  --query            Drive search text (default: motivation)
+  --max              Number of Drive videos to import (default: 3)
+  --max-seconds      Trim each Short to this many seconds (default: 60)
+  --privacy          YouTube privacy if publishing (default: private)
+  --publish          Publish after import/review
+  --rights-confirmed Use only when you have confirmed ownership/license rights
 `)
     }
   }

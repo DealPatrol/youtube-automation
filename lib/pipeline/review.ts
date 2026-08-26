@@ -58,6 +58,11 @@ export async function writeReviewPage(job: PipelineJob, outFile: string): Promis
         job.trends.selected.topic
       )}${job.trends.selected.detail ? ` (${escapeHtml(job.trends.selected.detail)})` : ''}</p>`
     : ''
+  const videoPreview = job.render?.videoFile
+    ? `<h2>Video preview</h2>
+  <video controls playsinline src="${escapeHtml(rel(job.render.videoFile))}" style="width: min(360px, 100%); border-radius: 10px; background: #000;"></video>
+  <p class="meta">${job.render.width}×${job.render.height} · ${job.render.durationSeconds.toFixed(1)}s</p>`
+    : ''
 
   const html = `<!doctype html>
 <html lang="en">
@@ -88,6 +93,7 @@ export async function writeReviewPage(job: PipelineJob, outFile: string): Promis
     job.config.aspectRatio
   )} · ${content.scenes.length} scenes</p>
   ${trend}
+  ${videoPreview}
 
   <h2>Hook (first 3 seconds)</h2>
   <div class="hook">${escapeHtml(content.scenes[0]?.narration || '')}</div>
