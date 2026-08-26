@@ -47,6 +47,36 @@ Fully hands-off (no approval gate, publishes immediately if creds exist):
 npm run pipeline -- create --auto --privacy unlisted
 ```
 
+## Import motivation videos from Google Drive as Shorts
+
+For existing motivation clips you own or have permission to publish, use the
+Drive importer. It uses read-only Google Drive OAuth, transcodes each matching
+video to a vertical 9:16 Short, writes a local review page, and defaults YouTube
+uploads to `private`.
+
+```bash
+# One-time Drive auth. Add GOOGLE_DRIVE_CLIENT_ID / GOOGLE_DRIVE_CLIENT_SECRET
+# first, then store the printed DRIVE_REFRESH_TOKEN in .env.
+npm run pipeline -- drive-auth
+
+# Import up to 3 motivation videos. Review each content/jobs/<jobId>/review.html.
+npm run pipeline -- drive-shorts --query motivation --max 3
+
+# After reviewing the clip and confirming you own/have publication rights:
+npm run pipeline -- confirm-rights <jobId>
+npm run pipeline -- approve <jobId>
+npm run pipeline -- publish <jobId> --privacy private
+```
+
+If you have already reviewed the source folder and rights, a one-command private
+publish path is available:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --max 1 --rights-confirmed --publish --privacy private
+```
+
+Publishing refuses Drive-sourced media until rights are confirmed for that job.
+
 ## Recommended keys for better output
 
 | Key | Stage | Effect |
@@ -58,6 +88,7 @@ npm run pipeline -- create --auto --privacy unlisted
 | `YOUTUBE_API_KEY` | 1 | Real YouTube trending chart for topic discovery |
 | `X_BEARER_TOKEN` | 1 | X hashtag trend aggregation |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_REFRESH_TOKEN` | 7 | Publishing |
+| `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` / `DRIVE_REFRESH_TOKEN` | Drive import | Read-only import of owner-provided source videos |
 
 ## YouTube publishing setup (one time, ~5 min)
 
@@ -91,6 +122,8 @@ npm run pipeline -- status <jobId>    # one job in detail
 npm run pipeline -- list              # all jobs, one line each
 npm run pipeline -- resume <jobId>    # continue after a failure (stages are idempotent)
 npm run pipeline -- reject <jobId> --reason "hook is weak, retry tomorrow's trend"
+npm run pipeline -- drive-shorts --query motivation --max 3
+npm run pipeline -- confirm-rights <jobId>
 ```
 
 Each job directory contains:

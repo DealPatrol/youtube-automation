@@ -27,6 +27,10 @@ export function buildAttributionText(records: RightsRecord[]): string {
     lines.push(`Contains AI-generated media (${aiProviders.join(', ')}).`)
   }
 
+  if (records.some((record) => record.provider === 'google-drive')) {
+    lines.push('Includes owner-provided Google Drive media used with confirmed publication rights.')
+  }
+
   return lines.join('\n')
 }
 
@@ -65,6 +69,16 @@ export function assertPublishable(manifest: RightsManifest): void {
       `Rights manifest has ${unlicensed.length} asset(s) without license info: ${unlicensed
         .map((asset) => asset.assetId)
         .join(', ')}`
+    )
+  }
+  const unconfirmedDriveAssets = manifest.assets.filter(
+    (asset) => asset.provider === 'google-drive' && !asset.publicationRightsConfirmed
+  )
+  if (unconfirmedDriveAssets.length > 0) {
+    throw new Error(
+      `Google Drive asset rights must be confirmed before publishing: ${unconfirmedDriveAssets
+        .map((asset) => asset.assetId)
+        .join(', ')}. Run: npm run pipeline -- confirm-rights ${manifest.jobId}`
     )
   }
 }
