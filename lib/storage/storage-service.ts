@@ -130,7 +130,15 @@ export async function getFileMetadata(fileName: string): Promise<Record<string, 
 
     const file = data?.find((f) => f.name === fileName.split('/').pop());
 
-    return file || null;
+    if (!file) return null;
+    return {
+      name: file.name,
+      id: file.id,
+      updated_at: file.updated_at,
+      created_at: file.created_at,
+      last_accessed_at: file.last_accessed_at,
+      metadata: file.metadata,
+    };
   } catch (error) {
     console.error('[v0] Storage metadata error:', error);
     return null;

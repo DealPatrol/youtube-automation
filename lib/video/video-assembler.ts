@@ -22,6 +22,10 @@ export interface VideoAssemblyResponse {
  * For MVP, returns mock response with proper metadata
  */
 export class VideoAssembler {
+  async assembleVideo(request: VideoAssemblyRequest): Promise<VideoAssemblyResponse> {
+    return this.assemble(request);
+  }
+
   /**
    * Main video assembly function
    * Downloads resources, combines them with FFmpeg, uploads result
@@ -69,14 +73,12 @@ export class VideoAssembler {
    */
   private getResolutionForFormat(format: VideoFormat): string {
     switch (format) {
-      case 'youtube-long':
-      case 'youtube-shorts':
+      case 'long-form':
+      case 'true-crime':
+      case 'tutorial':
         return '1920x1080'; // 1080p for YouTube
-      case 'tiktok':
-      case 'instagram-reels':
+      case 'short':
         return '1080x1920'; // Vertical 9:16
-      case 'youtube-thumbnail':
-        return '1280x720'; // 720p
       default:
         return '1920x1080';
     }

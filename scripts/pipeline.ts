@@ -4,6 +4,12 @@ import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
+import {
+  confirmDriveRights,
+  createDriveShortJobs,
+  runDriveAuthFlow,
+  searchDriveVideos,
+} from '@/lib/pipeline/drive'
 import type { PipelineConfig } from '@/lib/pipeline/types'
 import { resolveContentPlatform } from '@/lib/content/generation'
 
@@ -16,7 +22,8 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
- *   npm run pipeline -- status [jobId] | list | trends | auth
+ *   npm run pipeline -- drive-shorts --query motivation --max 3
+ *   npm run pipeline -- status [jobId] | list | trends | auth | drive-auth
  */
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Record<string, string | boolean> } {
@@ -40,11 +47,21 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Record<string
   return { positional, flags }
 }
 
-function buildConfig(flags: Record<string, string | boolean>): PipelineConfig {
-  const privacy = String(flags.privacy || 'unlisted')
+function positiveNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function parsePrivacy(value: unknown, fallback: PipelineConfig['privacy']): PipelineConfig['privacy'] {
+  const privacy = String(value || fallback)
   if (!['private', 'unlisted', 'public'].includes(privacy)) {
     throw new Error(`Invalid --privacy "${privacy}" (use private | unlisted | public)`)
   }
+  return privacy as PipelineConfig['privacy']
+}
+
+function buildConfig(flags: Record<string, string | boolean>): PipelineConfig {
+  const privacy = parsePrivacy(flags.privacy, 'unlisted')
   const aspect = String(flags.aspect || '16:9')
   if (!['16:9', '9:16'].includes(aspect)) {
     throw new Error(`Invalid --aspect "${aspect}" (use 16:9 | 9:16)`)
@@ -55,7 +72,7 @@ function buildConfig(flags: Record<string, string | boolean>): PipelineConfig {
     durationMinutes: Number(flags.minutes || 1),
     tone: String(flags.tone || 'energetic'),
     aspectRatio: aspect as PipelineConfig['aspectRatio'],
-    privacy: privacy as PipelineConfig['privacy'],
+    privacy,
     autoApprove: Boolean(flags.auto),
     publishAfterRender: Boolean(flags.publish) || Boolean(flags.auto),
   }
@@ -156,6 +173,63 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveAuthFlow()
+      break
+    }
+    case 'drive-search': {
+      const query = String(flags.query || positional.join(' ') || 'motivation')
+      const maxResults = positiveNumber(flags.max, 10)
+      const candidates = await searchDriveVideos(query, maxResults)
+      if (candidates.length === 0) {
+        console.log(`[drive] No Drive videos matched query "${query}"`)
+        break
+      }
+      console.log(`\nGoogle Drive videos matching "${query}":\n`)
+      for (const candidate of candidates) {
+        console.log(
+          `  ${candidate.id}  ${candidate.name}${
+            candidate.modifiedTime ? `  (${candidate.modifiedTime})` : ''
+          }`
+        )
+      }
+      break
+    }
+    case 'drive-shorts': {
+      const query = String(flags.query || positional.join(' ') || 'motivation')
+      const maxResults = positiveNumber(flags.max, 3)
+      const privacy = parsePrivacy(flags.privacy, 'private')
+      const publishAfterRender = Boolean(flags.publish)
+      const rightsConfirmed = Boolean(flags['rights-confirmed'])
+      const maxDurationSeconds = positiveNumber(flags.duration || flags.seconds, 59)
+
+      const jobs = await createDriveShortJobs({
+        query,
+        maxResults,
+        privacy,
+        publishAfterRender,
+        rightsConfirmed,
+        maxDurationSeconds,
+      })
+
+      for (const job of jobs) {
+        const finished =
+          publishAfterRender && rightsConfirmed ? await approveAndFinish(job.id) : job
+        printJobSummary(finished)
+        if (!rightsConfirmed) {
+          console.log(`  next:     npm run pipeline -- confirm-rights ${job.id}`)
+        }
+      }
+      break
+    }
+    case 'confirm-rights': {
+      const jobId = positional[0]
+      if (!jobId) throw new Error('Usage: pipeline confirm-rights <jobId>')
+      const job = await confirmDriveRights(jobId)
+      printJobSummary(job)
+      console.log(`  approved rights for Google Drive source. Next: npm run pipeline -- approve ${job.id}`)
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +245,23 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time read-only Google Drive OAuth
+  npm run pipeline -- drive-search --query motivation [--max 10]
+  npm run pipeline -- drive-shorts --query motivation [--max 3] [--duration 59]
+                             [--privacy private|unlisted|public] [--publish]
+                             [--rights-confirmed]
+  npm run pipeline -- confirm-rights <jobId> confirm rights for a Drive import
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Flags on drive-shorts:
+  --query              Search Drive video names/full text (default: motivation)
+  --duration           Max seconds to keep from each Drive clip (default: 59)
+  --rights-confirmed  Confirm you own or can use the imported clips
+  --publish            Upload after import; defaults to --privacy private
 `)
     }
   }

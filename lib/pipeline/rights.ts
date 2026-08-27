@@ -67,4 +67,14 @@ export function assertPublishable(manifest: RightsManifest): void {
         .join(', ')}`
     )
   }
+  const unconfirmed = manifest.assets.filter(
+    (asset) => asset.requiresRightsConfirmation && !asset.rightsConfirmed
+  )
+  if (unconfirmed.length > 0) {
+    throw new Error(
+      `Rights confirmation required before publishing asset(s): ${unconfirmed
+        .map((asset) => asset.assetId)
+        .join(', ')}`
+    )
+  }
 }

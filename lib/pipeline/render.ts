@@ -196,3 +196,69 @@ export async function renderThumbnail(sourceImage: string, outFile: string): Pro
   )
   return outFile
 }
+
+/** Convert an existing video into a 9:16 YouTube Short while preserving audio. */
+export async function renderImportedVideoShort(options: {
+  sourceFile: string
+  outFile: string
+  maxDurationSeconds: number
+}): Promise<{ videoFile: string; durationSeconds: number; width: number; height: number }> {
+  const { sourceFile, outFile, maxDurationSeconds } = options
+  await ensureFfmpegAvailable()
+  await fs.promises.mkdir(path.dirname(outFile), { recursive: true })
+
+  await execFileAsync(
+    resolveFfmpegPath(),
+    [
+      '-y',
+      '-i',
+      sourceFile,
+      '-t',
+      String(Math.min(Math.max(maxDurationSeconds, 1), 60)),
+      '-vf',
+      'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p',
+      '-r',
+      String(FPS),
+      '-c:v',
+      'libx264',
+      '-preset',
+      'medium',
+      '-c:a',
+      'aac',
+      '-ar',
+      '44100',
+      '-movflags',
+      '+faststart',
+      outFile,
+    ],
+    { maxBuffer: 1024 * 1024 * 50 }
+  )
+
+  const durationSeconds = await probeMediaDuration(outFile)
+  return { videoFile: outFile, durationSeconds, width: 1080, height: 1920 }
+}
+
+/** Extract a review/upload thumbnail from an imported video. */
+export async function renderVideoThumbnail(sourceVideo: string, outFile: string): Promise<string> {
+  await ensureFfmpegAvailable()
+  await fs.promises.mkdir(path.dirname(outFile), { recursive: true })
+  await execFileAsync(
+    resolveFfmpegPath(),
+    [
+      '-y',
+      '-ss',
+      '1',
+      '-i',
+      sourceVideo,
+      '-vf',
+      'scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720',
+      '-frames:v',
+      '1',
+      '-q:v',
+      '2',
+      outFile,
+    ],
+    { maxBuffer: 1024 * 1024 * 10 }
+  )
+  return outFile
+}

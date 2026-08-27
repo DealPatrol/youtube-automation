@@ -59,6 +59,30 @@ export async function writeReviewPage(job: PipelineJob, outFile: string): Promis
       )}${job.trends.selected.detail ? ` (${escapeHtml(job.trends.selected.detail)})` : ''}</p>`
     : ''
 
+  const source = job.source
+    ? `<p class="meta">Source: ${escapeHtml(job.source.provider)} — ${escapeHtml(job.source.name)}${
+        job.source.webViewLink
+          ? ` · <a href="${escapeHtml(job.source.webViewLink)}">Open source file</a>`
+          : ''
+      }</p>`
+    : ''
+
+  const renderedVideo = job.render?.videoFile
+    ? `<h2>Rendered video</h2>
+  <video controls playsinline src="${escapeHtml(rel(job.render.videoFile))}"></video>
+  <p class="meta">${job.render.width}x${job.render.height} · ${job.render.durationSeconds.toFixed(1)}s</p>`
+    : ''
+
+  const needsRightsConfirmation = job.rightsRecords.some(
+    (record) => record.requiresRightsConfirmation && !record.rightsConfirmed
+  )
+  const rightsNotice = needsRightsConfirmation
+    ? `<div class="warning">
+    This imported media needs rights confirmation before publishing. If you own it or have permission to use it, run:
+    <pre>npm run pipeline -- confirm-rights ${escapeHtml(job.id)}</pre>
+  </div>`
+    : ''
+
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -80,6 +104,9 @@ export async function writeReviewPage(job: PipelineJob, outFile: string): Promis
   pre { padding: .8rem; overflow-x: auto; }
   .pill { display: inline-block; background: #26263a; border-radius: 999px; padding: .15rem .7rem; margin: .15rem; font-size: .85rem; }
   .approve { background: #14351f; border-left: 4px solid #4caf7d; padding: .8rem 1rem; border-radius: 6px; }
+  .warning { background: #3d2d12; border-left: 4px solid #f59e0b; padding: .8rem 1rem; border-radius: 6px; margin: 1rem 0; }
+  video { width: 100%; max-height: 720px; border-radius: 8px; background: #000; }
+  a { color: #93c5fd; }
 </style>
 </head>
 <body>
@@ -88,6 +115,9 @@ export async function writeReviewPage(job: PipelineJob, outFile: string): Promis
     job.config.aspectRatio
   )} · ${content.scenes.length} scenes</p>
   ${trend}
+  ${source}
+  ${renderedVideo}
+  ${rightsNotice}
 
   <h2>Hook (first 3 seconds)</h2>
   <div class="hook">${escapeHtml(content.scenes[0]?.narration || '')}</div>
