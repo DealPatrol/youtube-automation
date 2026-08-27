@@ -22,6 +22,10 @@ export interface VideoAssemblyResponse {
  * For MVP, returns mock response with proper metadata
  */
 export class VideoAssembler {
+  async assembleVideo(request: VideoAssemblyRequest): Promise<VideoAssemblyResponse> {
+    return this.assemble(request);
+  }
+
   /**
    * Main video assembly function
    * Downloads resources, combines them with FFmpeg, uploads result
