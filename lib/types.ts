@@ -10,6 +10,43 @@ export type CompetitionLevel = 'low' | 'medium' | 'high';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+export interface ScriptJsonScene {
+  number?: number;
+  title: string;
+  duration_seconds: number;
+  voiceover?: string;
+  voiceover_text?: string;
+  broll_suggestions?: string[];
+  broll_notes?: string;
+  on_screen_text?: string[];
+  music_style?: string;
+  mood?: string;
+  tips?: string[];
+  common_mistakes?: string[];
+  sound_design?: string;
+}
+
+export interface ScriptJson {
+  title?: string;
+  hook?: string;
+  intro_hook?: string;
+  intro?: string;
+  scenes?: ScriptJsonScene[];
+  total_duration?: number;
+  total_duration_seconds?: number;
+  estimated_word_count?: number;
+  trending_angle?: string;
+  seo_keywords?: string[];
+  cta?: string;
+  conclusion?: string;
+  requirements?: string[];
+  steps?: ScriptJsonScene[];
+  dramatization_level?: string;
+  difficulty_level?: string;
+  resources_mentioned?: string[];
+  trending_elements?: string[];
+}
+
 // Script table
 export interface Script {
   id: string;
@@ -17,15 +54,7 @@ export interface Script {
   topic: string;
   format: VideoFormat;
   script_text: string | null;
-  script_json: {
-    scenes?: Array<{
-      title: string;
-      duration_seconds: number;
-      voiceover_text: string;
-      broll_notes: string;
-    }>;
-    total_duration?: number;
-  } | null;
+  script_json: ScriptJson | null;
   duration_seconds: number | null;
   ai_model: string;
   trending_angle: string | null;
