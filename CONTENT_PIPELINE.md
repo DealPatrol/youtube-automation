@@ -58,6 +58,7 @@ npm run pipeline -- create --auto --privacy unlisted
 | `YOUTUBE_API_KEY` | 1 | Real YouTube trending chart for topic discovery |
 | `X_BEARER_TOKEN` | 1 | X hashtag trend aggregation |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_REFRESH_TOKEN` | 7 | Publishing |
+| `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` / `GOOGLE_DRIVE_REFRESH_TOKEN` | Drive Shorts | Read-only import from Google Drive |
 
 ## YouTube publishing setup (one time, ~5 min)
 
@@ -71,6 +72,41 @@ Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
 
+## Google Drive motivation Shorts
+
+For a motivation channel with existing clips in Google Drive, use the Drive import
+commands. They search read-only Drive video files, download matching clips into a
+local job directory, crop/scale them to 1080x1920, cap each upload at 59 seconds
+by default, and write a review page before publishing.
+
+```bash
+# One-time OAuth for Drive read access
+npm run pipeline -- drive-auth
+
+# Preview candidate files
+npm run pipeline -- drive-search --query motivation --max 10
+
+# Import and render up to 3 matching clips as private-ready Shorts jobs
+npm run pipeline -- drive-shorts --query motivation --max 3
+
+# Confirm you own or have permission to use the Drive clip, then approve/publish
+npm run pipeline -- confirm-rights <jobId>
+npm run pipeline -- approve <jobId>
+npm run pipeline -- publish <jobId> --privacy private
+```
+
+If you want one command after credentials are configured and rights are already
+confirmed, keep the upload private first:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --max 1 --rights-confirmed --publish --privacy private
+```
+
+The pipeline does **not** automate reciprocal subscriptions, comment spam, or
+engagement bait. For audience growth on a brand new channel, use Shorts cadence,
+strong hooks, searchable titles, pinned comments, and manual replies to real
+comments instead of subscribing to people because they engaged elsewhere.
+
 ## Rights manifest
 
 Every image, narration track, and thumbnail gets a `RightsRecord` (provider,
@@ -79,6 +115,9 @@ license, source URL, prompt, model, photographer credit, AI-generated flag).
 publishing **refuses to run** if any asset lacks license information. Photographer
 credits and an AI-media disclosure line are appended to the video description
 automatically.
+
+Google Drive imports add a `google-drive-source-video` record that also requires
+explicit rights confirmation via `npm run pipeline -- confirm-rights <jobId>`.
 
 ## Job lifecycle & commands
 
@@ -91,6 +130,10 @@ npm run pipeline -- status <jobId>    # one job in detail
 npm run pipeline -- list              # all jobs, one line each
 npm run pipeline -- resume <jobId>    # continue after a failure (stages are idempotent)
 npm run pipeline -- reject <jobId> --reason "hook is weak, retry tomorrow's trend"
+npm run pipeline -- drive-auth        # one-time Drive OAuth
+npm run pipeline -- drive-search --query motivation --max 10
+npm run pipeline -- drive-shorts --query motivation --max 3
+npm run pipeline -- confirm-rights <jobId>
 ```
 
 Each job directory contains:

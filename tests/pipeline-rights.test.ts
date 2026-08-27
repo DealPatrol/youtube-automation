@@ -50,3 +50,27 @@ test('publishing is refused without assets or with unlicensed assets', () => {
   )
   assert.doesNotThrow(() => assertPublishable(manifest([record({})])))
 })
+
+test('publishing Drive imports requires explicit rights confirmation', () => {
+  const pending = record({
+    assetId: 'google-drive-source-video',
+    type: 'video',
+    provider: 'google-drive',
+    license: 'Pending creator rights confirmation',
+    requiresRightsConfirmation: true,
+    rightsConfirmed: false,
+  })
+
+  assert.throws(() => assertPublishable(manifest([pending])), /Rights confirmation required/)
+  assert.doesNotThrow(() =>
+    assertPublishable(
+      manifest([
+        {
+          ...pending,
+          license: 'User-owned or properly licensed media (confirmed by operator)',
+          rightsConfirmed: true,
+        },
+      ])
+    )
+  )
+})

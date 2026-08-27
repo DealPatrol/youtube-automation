@@ -19,6 +19,24 @@ npm run pipeline -- create --minutes 1 --aspect 9:16
 See **[CONTENT_PIPELINE.md](CONTENT_PIPELINE.md)** for setup (only
 `OPENAI_API_KEY` is required to start) and all commands.
 
+## Turn Google Drive motivation clips into YouTube Shorts
+
+If you already have motivational videos in Google Drive, the CLI can import
+matching Drive videos, crop them to 9:16 Shorts, write a review page, and upload
+them through the same rights-gated YouTube publisher:
+
+```bash
+npm run pipeline -- drive-auth
+npm run pipeline -- drive-shorts --query motivation --max 3
+npm run pipeline -- confirm-rights <jobId>
+npm run pipeline -- approve <jobId>
+npm run pipeline -- publish <jobId> --privacy private
+```
+
+Uploads are private by default for Drive imports. The pipeline refuses to publish
+Drive media until you explicitly confirm that you own the clip or have permission
+to use it.
+
 ## Standard package manager
 
 This repo is now standardized on **npm**.
@@ -63,6 +81,11 @@ Required for YouTube OAuth/upload:
 - `YOUTUBE_CLIENT_ID`
 - `YOUTUBE_CLIENT_SECRET`
 - `NEXTAUTH_URL`
+
+Required for Google Drive imports:
+- `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` or the shared
+  `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_DRIVE_REFRESH_TOKEN` from `npm run pipeline -- drive-auth`
 
 Required for image/video generation routes:
 - `FAL_KEY`

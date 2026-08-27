@@ -41,6 +41,12 @@ export interface RightsRecord {
   prompt?: string
   model?: string
   generatedByAI: boolean
+  /**
+   * User-provided media, such as Google Drive uploads, must be explicitly
+   * confirmed before publish even when basic license text is present.
+   */
+  requiresRightsConfirmation?: boolean
+  rightsConfirmed?: boolean
   retrievedAt: string
 }
 
@@ -81,6 +87,16 @@ export interface PipelineJob {
   status: PipelineStatus
   error?: string
   config: PipelineConfig
+  source?: {
+    provider: 'google-drive'
+    fileId: string
+    name: string
+    mimeType?: string
+    webViewLink?: string
+    modifiedTime?: string
+    importedAt: string
+    rightsConfirmed?: boolean
+  }
   trends?: { candidates: TrendCandidate[]; selected: TrendCandidate }
   content?: GeneratedContent
   sceneAssets?: SceneAssetState[]
