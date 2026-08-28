@@ -42,6 +42,8 @@ export interface RightsRecord {
   model?: string
   generatedByAI: boolean
   retrievedAt: string
+  /** Required for user-provided imports such as Google Drive source videos. */
+  rightsConfirmedAt?: string
 }
 
 export interface RightsManifest {
@@ -86,6 +88,16 @@ export interface PipelineJob {
   sceneAssets?: SceneAssetState[]
   thumbnailFile?: string
   captions?: { srtFile: string; vttFile: string }
+  driveImport?: {
+    fileId: string
+    name: string
+    mimeType: string
+    webViewLink?: string
+    sourceVideoFile: string
+    importedAt: string
+    rightsConfirmedAt?: string
+    rightsLicense?: string
+  }
   rightsRecords: RightsRecord[]
   approval?: { reviewFile: string; approvedAt?: string; rejectedAt?: string; reason?: string }
   render?: { videoFile: string; durationSeconds: number; width: number; height: number }

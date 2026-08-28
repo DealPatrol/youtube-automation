@@ -14,6 +14,51 @@ trends (YouTube / Google Trends / X)
 
 Everything is stored locally under `content/jobs/<jobId>/` — no database required.
 
+## Import motivation clips from Google Drive as YouTube Shorts
+
+For a brand-new motivation channel, the safer growth workflow is consistent
+Shorts publishing, not automated subscribe/follow exchanges. The CLI can import
+video files from your Drive, crop them to 9:16, cap them at 60 seconds, create a
+local review page, and publish only after you confirm the clip is owned or
+licensed for the channel.
+
+One-time Drive setup:
+
+```bash
+# Uses a read-only Drive scope and prints GOOGLE_DRIVE_REFRESH_TOKEN.
+npm run pipeline -- drive-auth
+```
+
+Find candidate clips:
+
+```bash
+npm run pipeline -- drive-search --query motivation --max 10
+```
+
+Create local Shorts jobs for review:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --max 3
+```
+
+Open each printed `content/jobs/<jobId>/review.html`, review the vertical render,
+then confirm rights and publish privately:
+
+```bash
+npm run pipeline -- confirm-rights <jobId> --license "Owned by channel"
+npm run pipeline -- publish <jobId> --privacy private
+```
+
+If you already reviewed the source folder and know all matching clips are owned
+or licensed, you can create and privately upload in one command:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --max 3 --rights-confirmed --publish --privacy private
+```
+
+Drive imports refuse publishing until `confirm-rights` or `--rights-confirmed`
+records explicit ownership/licensing confirmation in the rights manifest.
+
 ## Create content tonight (minimum setup)
 
 The only **required** key is `OPENAI_API_KEY` (script + TTS). Everything else degrades
@@ -58,6 +103,7 @@ npm run pipeline -- create --auto --privacy unlisted
 | `YOUTUBE_API_KEY` | 1 | Real YouTube trending chart for topic discovery |
 | `X_BEARER_TOKEN` | 1 | X hashtag trend aggregation |
 | `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` / `YOUTUBE_REFRESH_TOKEN` | 7 | Publishing |
+| `DRIVE_CLIENT_ID` / `DRIVE_CLIENT_SECRET` / `GOOGLE_DRIVE_REFRESH_TOKEN` | Drive imports | Read-only motivation clip search/download |
 
 ## YouTube publishing setup (one time, ~5 min)
 
@@ -91,6 +137,9 @@ npm run pipeline -- status <jobId>    # one job in detail
 npm run pipeline -- list              # all jobs, one line each
 npm run pipeline -- resume <jobId>    # continue after a failure (stages are idempotent)
 npm run pipeline -- reject <jobId> --reason "hook is weak, retry tomorrow's trend"
+npm run pipeline -- drive-search --query motivation --max 10
+npm run pipeline -- drive-shorts --query motivation --max 3
+npm run pipeline -- confirm-rights <jobId>
 ```
 
 Each job directory contains:

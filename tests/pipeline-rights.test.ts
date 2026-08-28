@@ -50,3 +50,32 @@ test('publishing is refused without assets or with unlicensed assets', () => {
   )
   assert.doesNotThrow(() => assertPublishable(manifest([record({})])))
 })
+
+test('publishing is refused for Google Drive imports without rights confirmation', () => {
+  assert.throws(
+    () =>
+      assertPublishable(
+        manifest([
+          record({
+            assetId: 'drive-1',
+            provider: 'google-drive',
+            license: 'User-owned media',
+          }),
+        ])
+      ),
+    /without rights confirmation/
+  )
+
+  assert.doesNotThrow(() =>
+    assertPublishable(
+      manifest([
+        record({
+          assetId: 'drive-1',
+          provider: 'google-drive',
+          license: 'User-owned media',
+          rightsConfirmedAt: new Date().toISOString(),
+        }),
+      ])
+    )
+  )
+})
