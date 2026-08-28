@@ -59,6 +59,14 @@ export function assertPublishable(manifest: RightsManifest): void {
   if (manifest.assets.length === 0) {
     throw new Error('Rights manifest has no assets — refusing to publish')
   }
+  const unconfirmedImports = manifest.assets.filter((asset) => asset.provider === 'google-drive' && !asset.rightsConfirmedAt)
+  if (unconfirmedImports.length > 0) {
+    throw new Error(
+      `Rights manifest has ${unconfirmedImports.length} Google Drive import(s) without rights confirmation: ${unconfirmedImports
+        .map((asset) => asset.assetId)
+        .join(', ')}`
+    )
+  }
   const unlicensed = manifest.assets.filter((asset) => !asset.license?.trim())
   if (unlicensed.length > 0) {
     throw new Error(
