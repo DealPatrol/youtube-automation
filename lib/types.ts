@@ -1,6 +1,8 @@
 // VideoForge Database Types
 // Automatically generated from Supabase schema
 
+import type { Json } from './db/database.types';
+
 export type VideoFormat = 'long-form' | 'short' | 'true-crime' | 'tutorial';
 export type ScriptStatus = 'draft' | 'generating' | 'completed' | 'failed';
 export type VoiceProvider = 'elevenlabs' | 'google-cloud' | 'openai';
@@ -19,12 +21,24 @@ export interface Script {
   script_text: string | null;
   script_json: {
     scenes?: Array<{
+      number?: number;
       title: string;
       duration_seconds: number;
-      voiceover_text: string;
-      broll_notes: string;
+      voiceover?: string;
+      voiceover_text?: string;
+      broll_notes?: string;
+      broll_suggestions?: string[];
+      on_screen_text?: string[];
+      music_style?: string;
+      mood?: string;
+      tips?: string[];
+      common_mistakes?: string[];
+      sound_design?: string;
+      [key: string]: Json | undefined;
     }>;
     total_duration?: number;
+    total_duration_seconds?: number;
+    [key: string]: Json | undefined;
   } | null;
   duration_seconds: number | null;
   ai_model: string;
