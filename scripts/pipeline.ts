@@ -1,6 +1,8 @@
 import 'dotenv/config'
 
 import { createJob, listJobs, loadJob } from '@/lib/pipeline/job-store'
+import { createDriveShortJob, confirmDriveJobRights } from '@/lib/pipeline/drive-import'
+import { runDriveAuthFlow, searchDriveVideos } from '@/lib/pipeline/drive'
 import { approveAndFinish, publishJob, rejectJob, runUntilApproval } from '@/lib/pipeline/run'
 import { discoverTrends } from '@/lib/pipeline/trends'
 import { runAuthFlow } from '@/lib/pipeline/youtube'
@@ -16,6 +18,10 @@ import { resolveContentPlatform } from '@/lib/content/generation'
  *   npm run pipeline -- approve <jobId>
  *   npm run pipeline -- reject <jobId> --reason "..."
  *   npm run pipeline -- publish <jobId> [--privacy public]
+ *   npm run pipeline -- drive-auth
+ *   npm run pipeline -- drive-search [--query motivation] [--folder <id>] [--max 10]
+ *   npm run pipeline -- drive-shorts [--file-id <id> | --query motivation] [--publish]
+ *   npm run pipeline -- confirm-rights <jobId>
  *   npm run pipeline -- status [jobId] | list | trends | auth
  */
 
@@ -61,9 +67,27 @@ function buildConfig(flags: Record<string, string | boolean>): PipelineConfig {
   }
 }
 
+function parseCsvFlag(value: string | boolean | undefined): string[] | undefined {
+  if (typeof value !== 'string') return undefined
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function parseNumberFlag(value: string | boolean | undefined): number | undefined {
+  if (typeof value !== 'string') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 function printJobSummary(job: Awaited<ReturnType<typeof loadJob>>): void {
   console.log(`\n${job.id}  [${job.status}]`)
   console.log(`  topic:    ${job.trends?.selected.topic || job.config.topic || '(pending)'}`)
+  if (job.source?.type === 'google-drive') {
+    console.log(`  source:   Google Drive: ${job.source.fileName}`)
+    console.log(`  rights:   ${job.source.rightsConfirmedAt ? 'confirmed' : 'confirmation required'}`)
+  }
   if (job.content) console.log(`  title:    ${job.content.seo.title}`)
   if (job.approval?.reviewFile) console.log(`  review:   ${job.approval.reviewFile}`)
   if (job.render) console.log(`  video:    ${job.render.videoFile} (${job.render.durationSeconds.toFixed(1)}s)`)
@@ -156,6 +180,62 @@ async function main() {
       await runAuthFlow()
       break
     }
+    case 'drive-auth': {
+      await runDriveAuthFlow()
+      break
+    }
+    case 'drive-search': {
+      const videos = await searchDriveVideos({
+        query: typeof flags.query === 'string' ? flags.query : 'motivation',
+        folderId: typeof flags.folder === 'string' ? flags.folder : undefined,
+        max: parseNumberFlag(flags.max) || 10,
+      })
+      if (videos.length === 0) {
+        console.log('No Drive videos matched your search.')
+        break
+      }
+      for (const video of videos) {
+        console.log(
+          `${video.id}  ${video.name}${video.modifiedTime ? `  (${video.modifiedTime})` : ''}${
+            video.webViewLink ? `\n  ${video.webViewLink}` : ''
+          }`
+        )
+      }
+      break
+    }
+    case 'drive-shorts': {
+      const privacy = typeof flags.privacy === 'string' ? flags.privacy : 'private'
+      if (!['private', 'unlisted', 'public'].includes(privacy)) {
+        throw new Error(`Invalid --privacy "${privacy}" (use private | unlisted | public)`)
+      }
+      const job = await createDriveShortJob({
+        fileId: typeof flags['file-id'] === 'string' ? flags['file-id'] : undefined,
+        query: typeof flags.query === 'string' ? flags.query : 'motivation',
+        folderId: typeof flags.folder === 'string' ? flags.folder : undefined,
+        title: typeof flags.title === 'string' ? flags.title : undefined,
+        description: typeof flags.description === 'string' ? flags.description : undefined,
+        tags: parseCsvFlag(flags.tags),
+        startSeconds: parseNumberFlag(flags.start),
+        maxSeconds: parseNumberFlag(flags.seconds),
+        privacy: privacy as 'private' | 'unlisted' | 'public',
+        publishAfterRender: Boolean(flags.publish),
+        rightsConfirmed: Boolean(flags['rights-confirmed']),
+        rightsOwner: typeof flags.owner === 'string' ? flags.owner : undefined,
+        license: typeof flags.license === 'string' ? flags.license : undefined,
+      })
+      printJobSummary(job)
+      break
+    }
+    case 'confirm-rights': {
+      const jobId = positional[0]
+      if (!jobId) throw new Error('Usage: pipeline confirm-rights <jobId> [--owner "..."] [--license "..."]')
+      const job = await confirmDriveJobRights(jobId, {
+        rightsOwner: typeof flags.owner === 'string' ? flags.owner : undefined,
+        license: typeof flags.license === 'string' ? flags.license : undefined,
+      })
+      printJobSummary(job)
+      break
+    }
     default: {
       console.log(`Content pipeline — trend discovery to YouTube publish.
 
@@ -171,11 +251,21 @@ Usage:
   npm run pipeline -- list
   npm run pipeline -- trends                 preview today's topic candidates
   npm run pipeline -- auth                   one-time YouTube OAuth (refresh token)
+  npm run pipeline -- drive-auth             one-time Google Drive OAuth (read-only refresh token)
+  npm run pipeline -- drive-search [--query motivation] [--folder <id>] [--max 10]
+  npm run pipeline -- drive-shorts [--file-id <id> | --query motivation] [--privacy private]
+  npm run pipeline -- confirm-rights <jobId> [--owner "..."] [--license "..."]
 
 Flags on create:
   --topic     Skip trend discovery and use this topic
   --auto      Skip the human approval gate (renders + publishes immediately)
   --publish   Publish to YouTube after approval (default only with --auto)
+
+Drive Shorts flow:
+  drive-shorts downloads one Drive video, trims/re-encodes it as a 9:16 <=60s Short,
+  writes review.html, and defaults uploads to private. Publishing requires both
+  confirm-rights and approve. To publish in one command after explicit rights attestation:
+  npm run pipeline -- drive-shorts --query motivation --rights-confirmed --publish --privacy private
 `)
     }
   }
