@@ -285,6 +285,9 @@ export async function publishJob(
 ): Promise<PipelineJob> {
   const job = await loadJob(jobId)
   if (!job.render) throw new Error(`Job ${jobId} has not been rendered yet — approve it first`)
+  if (job.source?.type === 'google-drive' && !job.approval?.approvedAt) {
+    throw new Error(`Job ${jobId} must be reviewed and approved before publishing a Google Drive import`)
+  }
   if (!job.rights) await stageRights(job)
   if (privacy) job.config.privacy = privacy
   job.config.publishAfterRender = true

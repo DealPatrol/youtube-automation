@@ -7,6 +7,7 @@ export type PipelineStatus =
   | 'content'
   | 'assets'
   | 'narration'
+  | 'imported'
   | 'awaiting_approval'
   | 'approved'
   | 'rejected'
@@ -74,12 +75,26 @@ export interface PipelineConfig {
   publishAfterRender: boolean
 }
 
+export interface GoogleDriveSource {
+  type: 'google-drive'
+  fileId: string
+  fileName: string
+  mimeType?: string
+  webViewLink?: string
+  originalFile: string
+  optimizedFile: string
+  importedAt: string
+  rightsConfirmedAt?: string
+  rightsStatement?: string
+}
+
 export interface PipelineJob {
   id: string
   createdAt: string
   updatedAt: string
   status: PipelineStatus
   error?: string
+  source?: GoogleDriveSource
   config: PipelineConfig
   trends?: { candidates: TrendCandidate[]; selected: TrendCandidate }
   content?: GeneratedContent

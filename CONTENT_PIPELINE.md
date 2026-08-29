@@ -71,6 +71,54 @@ Uploads set the title, description (with attribution block), tags, category,
 privacy, the SRT caption track, the custom thumbnail (requires a verified channel),
 and the `containsSyntheticMedia` disclosure whenever any asset was AI-generated.
 
+## Import motivation clips from Google Drive as YouTube Shorts
+
+The CLI can turn existing videos in Google Drive into private-by-default YouTube
+Shorts jobs. This path is intentionally review-first: it downloads one video,
+trims/re-encodes it to a 9:16, <=60-second Short, writes `review.html`, and
+refuses to publish until rights are confirmed and the job is approved.
+
+One-time setup:
+
+```bash
+# Uses GOOGLE_DRIVE_CLIENT_ID / GOOGLE_DRIVE_CLIENT_SECRET when set, otherwise
+# reuses YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET. The OAuth scope is read-only.
+npm run pipeline -- drive-auth
+```
+
+Find motivation videos:
+
+```bash
+npm run pipeline -- drive-search --query motivation --max 10
+# Optionally constrain search to a Drive folder:
+npm run pipeline -- drive-search --query motivation --folder <drive-folder-id> --max 10
+```
+
+Create a Shorts job from the best match, then review and publish privately:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --privacy private
+open content/jobs/<jobId>/review.html
+npm run pipeline -- confirm-rights <jobId> --owner "Your channel or creator name"
+npm run pipeline -- approve <jobId>
+npm run pipeline -- publish <jobId> --privacy private
+```
+
+If you already know the Drive file ID:
+
+```bash
+npm run pipeline -- drive-shorts --file-id <drive-file-id> --title "Daily Motivation" --tags motivation,mindset
+```
+
+For an explicitly attested private upload in one command:
+
+```bash
+npm run pipeline -- drive-shorts --query motivation --rights-confirmed --publish --privacy private
+```
+
+Only use `--rights-confirmed` when you own the video or have permission to
+publish the clip, music, voices, likenesses, and any third-party footage.
+
 ## Rights manifest
 
 Every image, narration track, and thumbnail gets a `RightsRecord` (provider,
