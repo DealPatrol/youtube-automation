@@ -255,7 +255,11 @@ export async function POST(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const resultId = searchParams.get('resultId')
-    const accessToken = searchParams.get('accessToken')
+    const authorization = request.headers.get('authorization')
+    const bearerToken = authorization?.startsWith('Bearer ')
+      ? authorization.slice('Bearer '.length).trim()
+      : null
+    const accessToken = bearerToken || searchParams.get('accessToken')
     const action = searchParams.get('action') || 'upload'
     const publishAt = searchParams.get('publishAt')
 

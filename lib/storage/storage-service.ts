@@ -117,7 +117,7 @@ export async function deleteFromStorage(fileName: string): Promise<void> {
 /**
  * Get file metadata from storage
  */
-export async function getFileMetadata(fileName: string): Promise<Record<string, unknown> | null> {
+export async function getFileMetadata(fileName: string): Promise<unknown | null> {
   try {
     const supabase = getSupabaseServerClient();
     const bucketName = process.env.SUPABASE_STORAGE_BUCKET || 'videos';

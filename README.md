@@ -78,11 +78,14 @@ Optional but supported:
 - `X_CONSUMER_KEY`, `X_CONSUMER_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET`
 - branding and background music variables from `.env.example`
 
-See `ENV_SETUP.md` for the full matrix and `DEPLOYMENT.md` for deployment notes.
+See `ENV_SETUP.md` for the full matrix and `DEPLOYMENT.md` for the deployment
+overview. Vercel and worker setup are intentionally separated in
+`docs/VERCEL_DEPLOYMENT.md` and `docs/WORKER_DEPLOYMENT.md`.
 
 ## Verification
 
 ```bash
 npm run lint
 npm test
+npm run build
 ```

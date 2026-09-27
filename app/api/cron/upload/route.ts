@@ -16,6 +16,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing Supabase credentials' }, { status: 500 })
   }
 
+  const youtubeAccessToken = process.env.YOUTUBE_ACCESS_TOKEN?.trim()
+  if (!youtubeAccessToken) {
+    return NextResponse.json({ error: 'Missing YouTube access token' }, { status: 500 })
+  }
+
   const supabase = createClient(supabaseUrl, supabaseKey)
 
   try {
@@ -56,23 +61,14 @@ export async function GET(request: Request) {
           continue
         }
 
-        // Get SEO data
-        const seo = result.seo || {}
-        const title = seo.title || video.title || video.topic
-        const description = seo.description || ''
-        const tags = seo.tags || []
-
         // Upload to YouTube (call our YouTube upload API)
-        const uploadResponse = await fetch(`${getPublicAppUrl()}/api/youtube-upload`, {
+        const uploadUrl = new URL('/api/youtube/upload', getPublicAppUrl())
+        uploadUrl.searchParams.set('resultId', result.id)
+        const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title,
-            description,
-            tags,
-            resultId: result.id,
-            accessToken: process.env.YOUTUBE_ACCESS_TOKEN, // Service account token
-          }),
+          headers: {
+            Authorization: `Bearer ${youtubeAccessToken}`,
+          },
         })
 
         if (!uploadResponse.ok) {

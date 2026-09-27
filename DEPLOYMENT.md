@@ -1,14 +1,22 @@
-# Deployment guide
+# Deployment overview
 
 This repo currently has three deployable surfaces:
 - `Next.js` app, including most user-facing APIs
 - `FastAPI` service in `api/` for assembly and storage-heavy work
 - `Python` workers in `workers/` for rendering and upload jobs
 
-## Recommended deployment: Render
+Use the dedicated guides so web and worker configuration do not get mixed:
 
-The root `render.yaml` defines a complete persistent Node web service. This avoids serverless
-function time limits and runs the bundled FFmpeg binary in the same service as the app.
+- **[Vercel / Next.js](docs/VERCEL_DEPLOYMENT.md)** — dashboard and server routes;
+  builds without FastAPI, Redis, database, or worker variables.
+- **[FastAPI and workers](docs/WORKER_DEPLOYMENT.md)** — long-running FFmpeg,
+  queue, database, and object-storage services on Render, Fly.io, or another
+  container host.
+
+The root `render.yaml` remains an alternative persistent host for the Next.js
+app. It does not define the FastAPI or Python worker services.
+
+## Alternative Next.js deployment: Render
 
 1. In Render, create a Blueprint from this repository.
 2. Supply the environment variables marked `sync: false`.
@@ -63,7 +71,9 @@ At minimum, production should provide:
 - media routes: `FAL_KEY`
 - public URL: automatically provided by Render; set `NEXTAUTH_URL` only for a custom domain
 - YouTube: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`
-- workers/api: `DATABASE_URL`, `REDIS_URL`
+
+The separately hosted FastAPI/worker stack needs `DATABASE_URL`, `REDIS_URL`,
+and its storage settings; those are not Next.js build requirements.
 
 ## Deployment steps
 
