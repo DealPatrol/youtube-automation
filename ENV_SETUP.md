@@ -4,7 +4,7 @@ This document reflects the variables actually referenced by the current Next.js 
 
 ## 1. Core app variables
 
-Required for most app flows:
+Required at runtime for most connected app flows (not required by `npm run build`):
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
@@ -67,6 +67,8 @@ Notes:
 YOUTUBE_CLIENT_ID=
 YOUTUBE_CLIENT_SECRET=
 YOUTUBE_ACCESS_TOKEN=
+YOUTUBE_REFRESH_TOKEN=
+YOUTUBE_API_KEY=
 ENABLE_YOUTUBE_CAPTIONS=true
 ```
 
@@ -75,10 +77,23 @@ Notes:
 - `YOUTUBE_ACCESS_TOKEN` is only needed for the cron upload route's current service-token flow.
 - `ENABLE_YOUTUBE_CAPTIONS=false` disables caption uploads.
 
+For the read-only Google Drive Shorts importer:
+
+```bash
+GOOGLE_DRIVE_CLIENT_ID=
+GOOGLE_DRIVE_CLIENT_SECRET=
+GOOGLE_DRIVE_REFRESH_TOKEN=
+```
+
+Run `npm run pipeline -- drive-auth` to obtain the refresh token. Shared
+`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` values are also
+supported.
+
 ## 5. Scheduled jobs and X integration
 
 ```bash
 CRON_SECRET=
+STRIPE_PRICE_ID_PRO=
 X_BEARER_TOKEN=
 X_CONSUMER_KEY=
 X_CONSUMER_SECRET=
@@ -89,6 +104,7 @@ X_TREND_QUERY=
 
 Notes:
 - `CRON_SECRET` protects `/api/cron/upload`.
+- `STRIPE_PRICE_ID_PRO` is the configured Pro checkout link identifier.
 - `X_BEARER_TOKEN` powers `/api/x-trends`.
 - OAuth 1.0a X credentials power `/api/x-agent`.
 
@@ -103,12 +119,24 @@ DB_NAME=video_db
 STORAGE_PATH=/app/storage/videos
 STORAGE_PROVIDER=s3
 DELETE_LOCAL_AFTER_UPLOAD=false
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=
+R2_ENDPOINT_URL=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=
+CDN_URL=
+CLOUDFLARE_ZONE_ID=
+CLOUDFLARE_API_TOKEN=
 ```
 
 Notes:
 - `DATABASE_URL` is consumed by FastAPI. Render-style `postgres://` URLs are normalized in code.
 - `DB_USER`, `DB_PASSWORD`, and `DB_NAME` are used by `docker-compose.yml` to build the local `DATABASE_URL`.
 - `REDIS_URL` is used by the API and workers.
+- Configure either the S3 or R2 group when `STORAGE_PROVIDER` uses object storage.
 
 ## 7. Prompt tuning
 
