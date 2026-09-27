@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import {
   ChannelStrategy,
   MonetizationStream,
@@ -5,11 +6,26 @@ import {
   ContentPillar,
   StrategyOutput,
 } from "@/lib/types/strategy";
-import { getSupabaseServerClient } from "@/lib/db/supabase-client";
+
+function getStrategyClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Missing Supabase environment variables (strategy)");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
 
 // Get or create user's channel strategy
 export async function getUserStrategy(userId: string): Promise<ChannelStrategy | null> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("channel_strategies")
     .select("*")
@@ -29,7 +45,7 @@ export async function createChannelStrategy(
   userId: string,
   strategy: Partial<ChannelStrategy>
 ): Promise<ChannelStrategy | null> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("channel_strategies")
     .insert([
@@ -54,7 +70,7 @@ export async function updateChannelStrategy(
   userId: string,
   updates: Partial<ChannelStrategy>
 ): Promise<ChannelStrategy | null> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("channel_strategies")
     .update({ ...updates, updated_at: new Date() })
@@ -78,7 +94,7 @@ export async function saveStrategyOutput(
   userInput: Record<string, string>,
   aiOutput: string
 ): Promise<StrategyOutput | null> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("strategy_outputs")
     .insert([
@@ -106,7 +122,7 @@ export async function getStrategyOutput(
   strategyId: string,
   promptNumber: number
 ): Promise<StrategyOutput | null> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("strategy_outputs")
     .select("*")
@@ -127,7 +143,7 @@ export async function saveContentRoadmap(
   strategyId: string,
   weeks: ContentRoadmapWeek[]
 ): Promise<boolean> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { error } = await supabase.from("content_roadmaps").insert(
     weeks.map((week) => ({
       strategy_id: strategyId,
@@ -145,7 +161,7 @@ export async function saveContentRoadmap(
 
 // Get content roadmap
 export async function getContentRoadmap(strategyId: string): Promise<ContentRoadmapWeek[]> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("content_roadmaps")
     .select("*")
@@ -165,7 +181,7 @@ export async function saveContentPillars(
   strategyId: string,
   pillars: ContentPillar[]
 ): Promise<boolean> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { error } = await supabase.from("content_pillars").insert(
     pillars.map((pillar) => ({
       strategy_id: strategyId,
@@ -186,7 +202,7 @@ export async function saveMonetizationPlans(
   strategyId: string,
   streams: MonetizationStream[]
 ): Promise<boolean> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { error } = await supabase.from("monetization_plans").insert(
     streams.map((stream) => ({
       strategy_id: strategyId,
@@ -204,7 +220,7 @@ export async function saveMonetizationPlans(
 
 // Get monetization plans
 export async function getMonetizationPlans(strategyId: string): Promise<MonetizationStream[]> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("monetization_plans")
     .select("*")
@@ -227,7 +243,7 @@ export async function linkScriptToStrategy(
   contentPillar: string,
   monetizationAngle: string
 ): Promise<boolean> {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { error } = await supabase.from("script_strategy_context").insert([
     {
       script_id: scriptId,
@@ -249,7 +265,7 @@ export async function linkScriptToStrategy(
 
 // Get strategy context for a script
 export async function getScriptStrategyContext(scriptId: string) {
-  const supabase = getSupabaseServerClient();
+  const supabase = getStrategyClient();
   const { data, error } = await supabase
     .from("script_strategy_context")
     .select("*")
