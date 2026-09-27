@@ -3,10 +3,9 @@ export function getRuntimeStatusEnv(
   localFfmpegAvailable = false
 ) {
   return {
-    nextPublicSupabaseUrl: Boolean(env.NEXT_PUBLIC_SUPABASE_URL),
-    nextPublicSupabaseAnonKey: Boolean(env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-    supabaseServiceRoleKey: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
-    supabaseStorageBucket: Boolean(env.SUPABASE_STORAGE_BUCKET),
+    databaseUrl: Boolean(env.DATABASE_URL),
+    betterAuthSecret: Boolean(env.BETTER_AUTH_SECRET),
+    blobToken: Boolean(env.BLOB_READ_WRITE_TOKEN),
     openaiApiKey: Boolean(env.OPENAI_API_KEY),
     falKey: Boolean(env.FAL_KEY),
     videoAssemblyUrl: Boolean(
@@ -15,7 +14,7 @@ export function getRuntimeStatusEnv(
     youtubeOAuth: Boolean(
       env.YOUTUBE_CLIENT_ID &&
         env.YOUTUBE_CLIENT_SECRET &&
-        (env.NEXTAUTH_URL || env.RENDER_EXTERNAL_URL || env.VERCEL_URL)
+        (env.NEXTAUTH_URL || env.RENDER_EXTERNAL_URL || env.VERCEL_URL || env.BETTER_AUTH_URL)
     ),
     xCredentials: Boolean(
       env.X_CONSUMER_KEY &&

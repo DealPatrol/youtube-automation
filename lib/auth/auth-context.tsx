@@ -1,7 +1,7 @@
 'use client'
 
-import { createClient, type User } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { authClient } from './client'
 
 interface DemoUser {
   uid: string
@@ -9,13 +9,19 @@ interface DemoUser {
   displayName: string | null
 }
 
-export function getAuthUserId(user: User | DemoUser | null): string | undefined {
+export interface AppUser {
+  id: string
+  email: string | null
+  name: string | null
+}
+
+export function getAuthUserId(user: AppUser | DemoUser | null): string | undefined {
   if (!user) return undefined
   return 'id' in user ? user.id : user.uid
 }
 
 interface AuthContextType {
-  user: User | DemoUser | null
+  user: AppUser | DemoUser | null
   loading: boolean
 }
 
@@ -23,12 +29,6 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
 })
-
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-  return url && anonKey ? createClient(url, anonKey) : null
-}
 
 function readDemoUser() {
   try {
@@ -40,57 +40,49 @@ function readDemoUser() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | DemoUser | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [sessionUser, setSessionUser] = useState<AppUser | null>(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
+  const [demoUser, setDemoUser] = useState<DemoUser | null>(null)
+  const [demoReady, setDemoReady] = useState(false)
 
   useEffect(() => {
-    const demoUser = readDemoUser()
-    if (demoUser) {
-      setUser(demoUser)
-      setLoading(false)
-      return
-    }
-
-    const supabase = getSupabaseClient()
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
     let active = true
 
-    supabase.auth.getUser().then(({ data, error }) => {
+    async function refreshSession() {
+      const result = await authClient.getSession()
       if (!active) return
-      if (error) {
-        console.warn('[auth] Failed to load session user', error.message)
-      }
-      setUser(data.user ?? null)
-      setLoading(false)
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? readDemoUser())
-      setLoading(false)
-    })
-
-    return () => {
-      active = false
-      subscription.unsubscribe()
+      const nextUser = result.data?.user
+      setSessionUser(
+        nextUser
+          ? {
+              id: nextUser.id,
+              email: nextUser.email ?? null,
+              name: nextUser.name ?? null,
+            }
+          : null
+      )
+      setSessionLoading(false)
     }
-  }, [])
 
-  useEffect(() => {
+    setDemoUser(readDemoUser())
+    setDemoReady(true)
+    void refreshSession()
+
     function handleStorageChange() {
-      setUser(readDemoUser())
+      setDemoUser(readDemoUser())
     }
 
     window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('auth-changed', refreshSession)
     return () => {
+      active = false
       window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('auth-changed', refreshSession)
     }
   }, [])
+
+  const user = demoUser ?? sessionUser
+  const loading = demoUser ? false : !demoReady || sessionLoading
 
   return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
 }

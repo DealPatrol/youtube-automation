@@ -17,13 +17,14 @@ from enum import Enum as PyEnum
 
 # ============ CONFIG ============
 DATABASE_URL = os.getenv("DATABASE_URL")
-# Render and some platforms use postgres://; SQLAlchemy/psycopg2 expect postgresql://
+# SQLAlchemy talks to Postgres through psycopg (v3). Neon and local URLs both work.
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
+if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgresql://"):]
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "videos")
+BLOB_READ_WRITE_TOKEN = os.getenv("BLOB_READ_WRITE_TOKEN")
+BLOB_API_URL = os.getenv("VERCEL_BLOB_API_URL", "https://vercel.com/api/blob")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 BACKGROUND_MUSIC_URL = os.getenv("BACKGROUND_MUSIC_URL")
@@ -468,21 +469,37 @@ def _apply_branding_overlay(input_path: str, logo_path: str, output_path: str, o
     _run_ffmpeg(args)
 
 
-def _upload_to_supabase_storage(local_path: str, storage_path: str, content_type: str) -> str:
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        raise RuntimeError("Supabase credentials missing for storage upload")
-    url = f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{storage_path}"
+def _blob_store_id(token: str) -> str:
+    parts = token.split("_")
+    if len(parts) < 4 or not parts[3]:
+        raise RuntimeError("BLOB_READ_WRITE_TOKEN is missing a store id")
+    return parts[3]
+
+
+def _upload_to_blob(local_path: str, storage_path: str, content_type: str) -> str:
+    if not BLOB_READ_WRITE_TOKEN:
+        raise RuntimeError("BLOB_READ_WRITE_TOKEN is required for storage upload")
+    pathname = storage_path.lstrip("/")
+    if not pathname.startswith("videos/"):
+        pathname = f"videos/{pathname}"
+    url = f"{BLOB_API_URL.rstrip('/')}/?pathname={requests.utils.quote(pathname, safe='/')}"
     headers = {
-        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
-        "apikey": SUPABASE_SERVICE_ROLE_KEY,
-        "Content-Type": content_type,
-        "x-upsert": "true",
+        "Authorization": f"Bearer {BLOB_READ_WRITE_TOKEN}",
+        "x-api-version": "12",
+        "x-content-type": content_type,
+        "x-vercel-blob-access": "public",
+        "x-add-random-suffix": "0",
+        "x-allow-overwrite": "1",
+        "x-vercel-blob-store-id": _blob_store_id(BLOB_READ_WRITE_TOKEN),
     }
     with open(local_path, "rb") as f:
-        response = requests.post(url, headers=headers, data=f)
+        response = requests.put(url, headers=headers, data=f, timeout=120)
     if response.status_code not in (200, 201):
-        raise RuntimeError(f"Storage upload failed: {response.status_code} {response.text}")
-    public_url = f"{SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{SUPABASE_STORAGE_BUCKET}/{storage_path}"
+        raise RuntimeError(f"Blob upload failed: {response.status_code} {response.text}")
+    payload = response.json()
+    public_url = payload.get("url")
+    if not public_url:
+        raise RuntimeError("Blob upload did not return a url")
     return public_url
 
 # ============ FASTAPI APP ============
@@ -559,8 +576,8 @@ async def get_result(result_id: str, db: Session = Depends(get_db)):
 
 @app.post("/api/assemble-video")
 async def assemble_video(request: AssembleVideoRequest):
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-        raise HTTPException(status_code=500, detail="Supabase storage not configured")
+    if not BLOB_READ_WRITE_TOKEN:
+        raise HTTPException(status_code=500, detail="Blob storage not configured")
 
     temp_dir = tempfile.mkdtemp(prefix="video-assembly-")
     try:
@@ -620,10 +637,10 @@ async def assemble_video(request: AssembleVideoRequest):
             with open(vtt_path, "w", encoding="utf-8") as f:
                 f.write(vtt)
             storage_path = f"results/{request.resultId}/captions-{int(datetime.utcnow().timestamp())}.vtt"
-            subtitle_url = _upload_to_supabase_storage(vtt_path, storage_path, "text/vtt")
+            subtitle_url = _upload_to_blob(vtt_path, storage_path, "text/vtt")
 
         video_storage_path = f"results/{request.resultId}/final-{int(datetime.utcnow().timestamp())}.mp4"
-        video_url = _upload_to_supabase_storage(final_output_path, video_storage_path, "video/mp4")
+        video_url = _upload_to_blob(final_output_path, video_storage_path, "video/mp4")
 
         return {"videoUrl": video_url, "subtitleUrl": subtitle_url}
     finally:

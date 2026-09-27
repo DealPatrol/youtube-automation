@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
+import { getSessionUserId } from "@/lib/auth/session";
 import { anthropic } from "@ai-sdk/anthropic";
 import {
   getUserStrategy,
@@ -11,13 +12,7 @@ import { getStrategyPrompt } from "@/lib/ai/strategy-prompts";
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user from auth header (bearer value is the user id)
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const userId = authHeader.replace("Bearer ", "");
+    const userId = await getSessionUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 
+import { getSessionUserId } from '@/lib/auth/session'
+import { getProjectForUser, getResultForUser, updateResult } from '@/lib/db/records'
+import { uploadBlob } from '@/lib/storage/blob'
 import { resolveDuration } from '@/lib/video/timing'
 import { ensureFfmpegAvailable, resolveFfmpegPath } from '@/lib/video/ffmpeg'
 import {
@@ -20,9 +22,6 @@ export const maxDuration = 300
 
 const execFileAsync = promisify(execFile)
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const storageBucket = process.env.SUPABASE_STORAGE_BUCKET || 'videos'
 const backgroundMusicUrl = process.env.BACKGROUND_MUSIC_URL
 const backgroundMusicPath = process.env.BACKGROUND_MUSIC_PATH
 const backgroundMusicVolume = Number(process.env.BACKGROUND_MUSIC_VOLUME ?? 0.2)
@@ -485,22 +484,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing resultId' }, { status: 400 })
     }
 
-    if (!supabaseUrl || !supabaseKey) {
+    if (!process.env.DATABASE_URL) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    const userId = await getSessionUserId()
+    if (!userId) {
+      return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
+    }
 
     console.log('[API] Starting video assembly for result:', resultId)
 
-    const { data: result, error: fetchError } = await supabase
-      .from('results')
-      .select('*, project_id')
-      .eq('id', resultId)
-      .single()
+    const result = await getResultForUser<{
+      scenes?: SceneAsset[]
+      script?: unknown
+      project_id: string
+    }>(resultId, userId)
 
-    if (fetchError || !result) {
-      console.error('[API] Failed to fetch result:', fetchError)
+    if (!result) {
+      console.error('[API] Failed to fetch result')
       return NextResponse.json({ error: 'Result not found' }, { status: 404 })
     }
 
@@ -509,11 +511,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No scenes to assemble' }, { status: 400 })
     }
 
-    const { data: project } = await supabase
-      .from('projects')
-      .select('video_length_minutes, youtube_clip_duration, tiktok_clip_duration, platform')
-      .eq('id', result.project_id)
-      .single()
+    const project = await getProjectForUser<{
+      video_length_minutes?: number
+      youtube_clip_duration?: number
+      tiktok_clip_duration?: number
+      platform?: string
+    }>(result.project_id, userId)
 
     const configuredDuration =
       project?.platform === 'tiktok'
@@ -521,10 +524,7 @@ export async function POST(request: Request) {
         : project?.youtube_clip_duration
     const defaultDuration = Number(configuredDuration) > 0 ? Number(configuredDuration) : 5
 
-    await supabase
-      .from('results')
-      .update({ processing_status: 'assembling' })
-      .eq('id', resultId)
+    await updateResult(resultId, { processing_status: 'assembling' }, userId)
 
     const requestOptions = body.options || {}
     const requestBackgroundMusicUrl = requestOptions.backgroundMusicUrl?.trim()
@@ -578,17 +578,13 @@ export async function POST(request: Request) {
         throw new Error('Assembly backend did not return videoUrl')
       }
 
-      const { error: updateError } = await supabase
-        .from('results')
-        .update({
-          video_url: assembledVideoUrl,
-          processing_status: 'completed',
-        })
-        .eq('id', resultId)
+      const updated = await updateResult(resultId, {
+        video_url: assembledVideoUrl,
+        processing_status: 'completed',
+      }, userId)
 
-      if (updateError) {
-        console.error('[API] Failed to update result:', updateError)
-        throw updateError
+      if (!updated) {
+        throw new Error('Failed to update result')
       }
 
       return NextResponse.json({
@@ -676,50 +672,36 @@ export async function POST(request: Request) {
       const subtitlePath = path.join(tempDir, `captions_${resultId}.vtt`)
       await fs.promises.writeFile(subtitlePath, captions)
       const subtitleStoragePath = `results/${resultId}/captions-${Date.now()}.vtt`
-      const { error: subtitleUploadError } = await supabase.storage
-        .from(storageBucket)
-        .upload(subtitleStoragePath, await fs.promises.readFile(subtitlePath), {
-          contentType: 'text/vtt',
-          upsert: true,
-        })
-      if (!subtitleUploadError) {
-        const { data: subtitlePublicUrl } = supabase.storage
-          .from(storageBucket)
-          .getPublicUrl(subtitleStoragePath)
-        subtitleUrl = subtitlePublicUrl.publicUrl
+      try {
+        subtitleUrl = await uploadBlob(
+          subtitleStoragePath,
+          await fs.promises.readFile(subtitlePath),
+          'text/vtt'
+        )
+      } catch (subtitleUploadError) {
+        console.warn('[API] Subtitle upload failed', subtitleUploadError)
       }
     }
 
-    await supabase
-      .from('results')
-      .update({ processing_status: 'uploading' })
-      .eq('id', resultId)
+    await updateResult(resultId, { processing_status: 'uploading' }, userId)
 
     const fileBuffer = await fs.promises.readFile(finalOutputPath)
     const storagePath = `results/${resultId}/final-${Date.now()}.mp4`
-    const { error: uploadError } = await supabase.storage.from(storageBucket).upload(storagePath, fileBuffer, {
-      contentType: 'video/mp4',
-      upsert: true,
-    })
-
-    if (uploadError) {
-      throw new Error(`Failed to upload video: ${uploadError.message}`)
+    let assembledVideoUrl: string
+    try {
+      assembledVideoUrl = await uploadBlob(storagePath, fileBuffer, 'video/mp4')
+    } catch (uploadError) {
+      const message = uploadError instanceof Error ? uploadError.message : 'Blob upload failed'
+      throw new Error(`Failed to upload video: ${message}`)
     }
 
-    const { data: publicUrlData } = supabase.storage.from(storageBucket).getPublicUrl(storagePath)
-    const assembledVideoUrl = publicUrlData.publicUrl
+    const updated = await updateResult(resultId, {
+      video_url: assembledVideoUrl,
+      processing_status: 'completed',
+    }, userId)
 
-    const { error: updateError } = await supabase
-      .from('results')
-      .update({
-        video_url: assembledVideoUrl,
-        processing_status: 'completed',
-      })
-      .eq('id', resultId)
-
-    if (updateError) {
-      console.error('[API] Failed to update result:', updateError)
-      throw updateError
+    if (!updated) {
+      throw new Error('Failed to update result')
     }
 
     console.log('[API] Video assembly complete')
@@ -735,15 +717,14 @@ export async function POST(request: Request) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('[API] Video assembly error:', errorMessage)
 
-    if (resultId && supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey)
-      await supabase
-        .from('results')
-        .update({
+    if (resultId) {
+      const userId = await getSessionUserId()
+      if (userId) {
+        await updateResult(resultId, {
           processing_status: 'error',
           error_message: errorMessage,
-        })
-        .eq('id', resultId)
+        }, userId)
+      }
     }
 
     return NextResponse.json({ error: errorMessage }, { status: 500 })

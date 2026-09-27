@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUserId } from '@/lib/auth/session';
 import { youtubeUploader } from '@/lib/youtube/youtube-uploader';
 import { getVideo, updateVideo } from '@/lib/db/queries';
 import type { ApiResponse } from '@/lib/types';
@@ -19,16 +20,13 @@ interface YouTubeUploadRequest {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get user from auth header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const userId = await getSessionUserId();
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' } as ApiResponse<null>,
         { status: 401 }
       );
     }
-
-    const userId = authHeader.replace('Bearer ', '');
 
     // Parse request body
     const body: YouTubeUploadRequest = await request.json();

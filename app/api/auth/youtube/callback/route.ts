@@ -1,31 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getPublicAppUrl } from '@/lib/config/app-url'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
+import { getSessionUserId } from '@/lib/auth/session'
+import { updateResult } from '@/lib/db/records'
 
 export async function GET(request: Request) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
-    }
-
     const { searchParams } = new URL(request.url)
     const authorizationError = searchParams.get('error')
     const code = searchParams.get('code')
@@ -75,18 +54,20 @@ export async function GET(request: Request) {
 
     console.log('[OAuth] Token exchange successful')
 
-    // Store refresh token in Supabase if we have a resultId
     if (resultId && resultId !== 'unknown') {
-      const { error: updateError } = await supabase
-        .from('results')
-        .update({
-          youtube_refresh_token: refresh_token,
-          youtube_access_token: access_token,
-        })
-        .eq('id', resultId)
+      const userId = await getSessionUserId()
+      if (!userId) {
+        return NextResponse.redirect(
+          new URL(`/results/${resultId}?youtube_error=${encodeURIComponent('Sign in required')}`, request.url)
+        )
+      }
+      const updated = await updateResult(resultId, {
+        youtube_refresh_token: refresh_token,
+        youtube_access_token: access_token,
+      }, userId)
 
-      if (updateError) {
-        console.error('[OAuth] Failed to store tokens:', updateError)
+      if (!updated) {
+        console.error('[OAuth] Failed to store tokens for result:', resultId)
       } else {
         console.log('[OAuth] Tokens stored successfully for result:', resultId)
       }

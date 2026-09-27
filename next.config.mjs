@@ -6,6 +6,7 @@ const __dirname = path.dirname(__filename)
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['pg', 'better-auth'],
   images: {
     unoptimized: true,
   },

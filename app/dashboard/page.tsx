@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -28,11 +27,7 @@ import {
   PauseCircle,
   Loader2,
 } from 'lucide-react'
-import { getAuthUserId, useAuth } from '@/lib/auth/auth-context'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
+import { useAuth } from '@/lib/auth/auth-context'
 
 interface Project {
   id: string
@@ -62,9 +57,9 @@ interface PlanLimits {
 }
 
 type EnvStatus = {
-  nextPublicSupabaseUrl: boolean
-  supabaseServiceRoleKey: boolean
-  supabaseStorageBucket: boolean
+  databaseUrl: boolean
+  betterAuthSecret: boolean
+  blobToken: boolean
   openaiApiKey: boolean
   falKey: boolean
   videoAssemblyUrl: boolean
@@ -107,49 +102,57 @@ export default function DashboardPage() {
   async function loadDashboardData() {
     try {
       setLoading(true)
-      // Load projects from Supabase
-      if (supabase && user) {
-        const { data: projectsData, error: projectsError } = await supabase
-          .from('projects')
-          .select('*, results(id, video_url, created_at)')
-          .eq('user_id', getAuthUserId(user))
-          .order('created_at', { ascending: false })
-          .limit(10)
+      if (user) {
+        const projectsRes = await fetch('/api/projects')
+        if (projectsRes.status === 401) {
+          setProjects([])
+        } else if (!projectsRes.ok) {
+          throw new Error('Failed to load projects')
+        } else {
+          const payload = await projectsRes.json()
+          const projectsData = payload.projects || []
+          setProjects(
+            projectsData.map((p: {
+              id: string
+              title?: string
+              topic: string
+              created_at: string
+              status?: Project['status']
+              scheduled_for?: string
+              video_url?: string
+              views?: number
+              results?: Array<{ id: string; video_url?: string; created_at?: string }>
+            }) => {
+              const latestResult = [...(p.results || [])].sort(
+                (a, b) =>
+                  new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+              )[0]
+              return {
+                id: p.id,
+                result_id: latestResult?.id,
+                title: p.title || p.topic,
+                topic: p.topic,
+                created_at: p.created_at,
+                status: p.status || 'draft',
+                scheduled_for: p.scheduled_for,
+                video_url: latestResult?.video_url || p.video_url,
+                views: p.views || 0,
+              }
+            })
+          )
 
-        if (projectsError) throw projectsError
+          const created = projectsData.length || 0
+          const published = projectsData.filter((p: { status?: string }) => p.status === 'published').length || 0
+          const scheduled = projectsData.filter((p: { status?: string }) => p.status === 'scheduled').length || 0
+          const views = projectsData.reduce((sum: number, p: { views?: number }) => sum + (p.views || 0), 0) || 0
 
-        setProjects(
-          projectsData?.map((p) => {
-            const latestResult = [...(p.results || [])].sort(
-              (a, b) =>
-                new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-            )[0]
-            return {
-              id: p.id,
-              result_id: latestResult?.id,
-              title: p.title || p.topic,
-              topic: p.topic,
-              created_at: p.created_at,
-              status: p.status || 'draft',
-              scheduled_for: p.scheduled_for,
-              video_url: latestResult?.video_url || p.video_url,
-              views: p.views || 0,
-            }
-          }) || []
-        )
-
-        // Calculate stats
-        const created = projectsData?.length || 0
-        const published = projectsData?.filter((p) => p.status === 'published').length || 0
-        const scheduled = projectsData?.filter((p) => p.status === 'scheduled').length || 0
-        const views = projectsData?.reduce((sum, p) => sum + (p.views || 0), 0) || 0
-
-        setStats({
-          videosCreated: created,
-          videosPublished: published,
-          totalViews: views,
-          scheduledVideos: scheduled,
-        })
+          setStats({
+            videosCreated: created,
+            videosPublished: published,
+            totalViews: views,
+            scheduledVideos: scheduled,
+          })
+        }
       }
 
       // Load plan limits
@@ -504,9 +507,9 @@ export default function DashboardPage() {
                 {envStatus && (
                   <div className="space-y-2 text-sm text-muted-foreground">
                     {([
-                      ['Supabase URL', envStatus.nextPublicSupabaseUrl],
-                      ['Supabase Service Key', envStatus.supabaseServiceRoleKey],
-                      ['Supabase Storage Bucket', envStatus.supabaseStorageBucket],
+                      ['Database', envStatus.databaseUrl],
+                      ['Auth secret', envStatus.betterAuthSecret],
+                      ['Blob storage', envStatus.blobToken],
                       ['OpenAI API Key', envStatus.openaiApiKey],
                       ['FAL Key', envStatus.falKey],
                       ['Video assembly', envStatus.videoAssemblyUrl],

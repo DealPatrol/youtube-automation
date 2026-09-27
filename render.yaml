@@ -16,13 +16,13 @@ services:
         value: "24"
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
-      - key: SUPABASE_STORAGE_BUCKET
-        value: videos
-      - key: NEXT_PUBLIC_SUPABASE_URL
+      - key: DATABASE_URL
         sync: false
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+      - key: BETTER_AUTH_SECRET
         sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: BLOB_READ_WRITE_TOKEN
         sync: false
       - key: OPENAI_API_KEY
         sync: false

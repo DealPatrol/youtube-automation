@@ -1,5 +1,4 @@
-// This file is auto-generated from Supabase schema
-// To regenerate: npx supabase gen types typescript --project-id your-project-id > lib/db/database.types.ts
+// App database types. The Postgres schema lives in db/neon-schema.sql.
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 

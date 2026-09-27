@@ -1,29 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import JSZip from 'jszip'
+import { getSessionUserId } from '@/lib/auth/session'
+import { getResultForUser } from '@/lib/db/records'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
+export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
+    const userId = await getSessionUserId()
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const { resultId } = await request.json()
 
@@ -31,20 +16,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing resultId' }, { status: 400 })
     }
 
-    console.log('[Package] Creating video package for result:', resultId)
+    const result = await getResultForUser<{
+      scenes?: unknown
+      script?: unknown
+      seo?: { title?: string }
+      capcut_steps?: unknown
+      thumbnail?: unknown
+      project_id?: string
+      created_at?: string
+    }>(resultId, userId)
 
-    // Fetch result data
-    const { data: result, error: dbError } = await supabase
-      .from('results')
-      .select('*')
-      .eq('id', resultId)
-      .single()
-
-    if (dbError || !result) {
+    if (!result) {
       return NextResponse.json({ error: 'Result not found' }, { status: 404 })
     }
 
-    // Create complete project package
     const projectPackage = {
       scenes: result.scenes || [],
       script: result.script || {},
@@ -59,9 +44,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Return JSON file as download
     const jsonContent = JSON.stringify(projectPackage, null, 2)
-    
+
     return new NextResponse(jsonContent, {
       headers: {
         'Content-Type': 'application/json',

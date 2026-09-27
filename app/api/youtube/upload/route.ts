@@ -1,29 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { google } from 'googleapis'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+import { getSessionUserId } from '@/lib/auth/session'
+import { getResultById, getResultForUser, updateResult } from '@/lib/db/records'
 
 export const runtime = 'nodejs'
 const enableYouTubeCaptions = process.env.ENABLE_YOUTUBE_CAPTIONS !== 'false'
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
 
 /**
  * Upload video to YouTube with OAuth2 access token
@@ -267,9 +253,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing accessToken' }, { status: 400 })
     }
 
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
     }
+
+    const cronHeader = request.headers.get('x-cron-secret')
+    const isCron = Boolean(process.env.CRON_SECRET && cronHeader === process.env.CRON_SECRET)
+    const userId = isCron ? undefined : (await getSessionUserId()) ?? undefined
 
     // Handle status check
     if (action === 'status') {
@@ -290,14 +280,37 @@ export async function POST(request: NextRequest) {
 
       console.log('[API] YouTube upload started for result:', resultId)
 
-      // Fetch result from Supabase
-      const { data: result, error: dbError } = await supabase
-        .from('results')
-        .select('*')
-        .eq('id', resultId)
-        .single()
+      if (!userId && !isCron) {
+        return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
+      }
 
-      if (dbError || !result) {
+      const result = userId
+        ? await getResultForUser<{
+        video_url?: string | null
+        seo?: {
+          title?: string
+          description?: string
+          tags?: string[]
+          categoryId?: string
+          privacyStatus?: string
+          madeForKids?: boolean
+        }
+        scenes?: any[]
+      }>(resultId, userId)
+        : await getResultById<{
+        video_url?: string | null
+        seo?: {
+          title?: string
+          description?: string
+          tags?: string[]
+          categoryId?: string
+          privacyStatus?: string
+          madeForKids?: boolean
+        }
+        scenes?: any[]
+      }>(resultId)
+
+      if (!result) {
         return NextResponse.json({ error: 'Result not found' }, { status: 404 })
       }
 
@@ -321,16 +334,10 @@ export async function POST(request: NextRequest) {
         publishAt,
       }
 
-      const { error: startUploadError } = await supabase
-        .from('results')
-        .update({
-          youtube_status: 'uploading',
-          youtube_metadata: metadata,
-        })
-        .eq('id', resultId)
+      const started = await updateResult(resultId, { youtube_status: 'uploading' }, userId)
 
-      if (startUploadError) {
-        console.error('[API] Failed to mark upload as in-progress:', startUploadError)
+      if (!started) {
+        console.error('[API] Failed to mark upload as in-progress')
       }
 
       let videoPath: string | null = null
@@ -360,14 +367,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        await supabase
-          .from('results')
-          .update({
-            youtube_status: 'uploaded',
-            youtube_video_id: uploadResult.videoId,
-            youtube_metadata: metadata,
-          })
-          .eq('id', resultId)
+        await updateResult(resultId, {
+          youtube_status: 'uploaded',
+          youtube_video_id: uploadResult.videoId,
+        }, userId)
 
         return NextResponse.json({
           success: true,
@@ -379,14 +382,11 @@ export async function POST(request: NextRequest) {
         })
       } catch (uploadError) {
         console.error('[API] YouTube upload failed:', uploadError)
-        await supabase
-          .from('results')
-          .update({
-            youtube_status: 'error',
-            youtube_error: uploadError instanceof Error ? uploadError.message : 'Upload failed',
-            youtube_video_id: uploadedVideoId,
-          })
-          .eq('id', resultId)
+        await updateResult(resultId, {
+          youtube_status: 'error',
+          error_message: uploadError instanceof Error ? uploadError.message : 'Upload failed',
+          youtube_video_id: uploadedVideoId,
+        }, userId)
 
         throw uploadError
       } finally {

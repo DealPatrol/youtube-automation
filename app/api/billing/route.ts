@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+import { getSessionUserId } from '@/lib/auth/session'
+import { countProjectsSince } from '@/lib/db/records'
+import { getAppUser } from '@/lib/db/users'
 
 // Plan configurations
 const PLANS = {
@@ -29,16 +28,11 @@ const PLANS = {
   },
 }
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    // In production, get user from session/JWT
-    const userId = 'anonymous-user'
-
-    // Default to Pro plan (user has paid subscription)
-    const defaultPlan = 'pro'
-
-    if (!supabaseUrl || !supabaseKey) {
-      // Return Pro plan by default
+    const defaultPlan = 'pro' as const
+    const userId = await getSessionUserId()
+    if (!userId || !process.env.DATABASE_URL) {
       return NextResponse.json({
         plan: defaultPlan,
         videosUsed: 0,
@@ -46,36 +40,20 @@ export async function GET(request: Request) {
       })
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    const profile = await getAppUser(userId)
+    const tier = profile?.subscription_tier
+    const plan = tier === 'free' || tier === 'pro' || tier === 'enterprise' ? tier : defaultPlan
+    const planConfig = PLANS[plan]
 
-    // Get user subscription
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .single()
-
-    const plan = (subscription?.plan as keyof typeof PLANS) || defaultPlan
-    const planConfig = PLANS[plan] || PLANS[defaultPlan]
-
-    // Count videos created this month
     const startOfMonth = new Date()
     startOfMonth.setDate(1)
     startOfMonth.setHours(0, 0, 0, 0)
-
-    const { count: videosUsed } = await supabase
-      .from('projects')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .gte('created_at', startOfMonth.toISOString())
+    const videosUsed = await countProjectsSince(userId, startOfMonth)
 
     return NextResponse.json({
       plan,
-      videosUsed: videosUsed || 0,
+      videosUsed,
       ...planConfig,
-      subscriptionId: subscription?.id,
-      renewsAt: subscription?.current_period_end,
     })
   } catch (error) {
     console.error('[Billing] Error:', error)

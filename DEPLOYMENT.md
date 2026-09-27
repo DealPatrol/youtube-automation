@@ -58,7 +58,7 @@ This brings up:
 
 The default production flow is:
 1. Next.js app and video assembly on a persistent Render Node service
-2. Supabase Postgres and Storage
+2. Neon Postgres and Vercel Blob
 3. OpenAI for scripts and voiceover
 4. fal.ai for scene images or video clips
 
@@ -67,7 +67,7 @@ The separate FastAPI and worker services remain optional for higher-volume rende
 ### Environment mapping
 
 At minimum, production should provide:
-- app core: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`
+- app core: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BLOB_READ_WRITE_TOKEN`, `OPENAI_API_KEY`
 - media routes: `FAL_KEY`
 - public URL: automatically provided by Render; set `NEXTAUTH_URL` only for a custom domain
 - YouTube: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`

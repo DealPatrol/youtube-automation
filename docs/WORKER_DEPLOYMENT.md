@@ -27,12 +27,13 @@ commands in `docker-compose.yml` as the source of truth.
 ```bash
 DATABASE_URL=
 REDIS_URL=
-NEXT_PUBLIC_SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET=videos
+BLOB_READ_WRITE_TOKEN=
 STORAGE_PATH=/app/storage/videos
 STORAGE_PROVIDER=s3
 ```
+
+`DATABASE_URL` is the same Postgres database as the matching Next.js project.
+Assembled videos are uploaded to Vercel Blob with `BLOB_READ_WRITE_TOKEN`.
 
 Choose and configure one object-storage backend:
 
