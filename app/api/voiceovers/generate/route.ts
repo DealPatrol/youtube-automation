@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUserId } from '@/lib/auth/session';
 import { ttsService } from '@/lib/tts/tts-service';
 import { getScript } from '@/lib/db/queries';
 import { createVoiceover } from '@/lib/db/queries';
@@ -18,16 +19,13 @@ interface GenerateVoiceoverRequest {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get user from auth header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const userId = await getSessionUserId();
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' } as ApiResponse<null>,
         { status: 401 }
       );
     }
-
-    const userId = authHeader.replace('Bearer ', '');
 
     // Parse request body
     const body: GenerateVoiceoverRequest = await request.json();

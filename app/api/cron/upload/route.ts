@@ -1,19 +1,17 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getPublicAppUrl } from '@/lib/config/app-url'
+import { listDueScheduledProjects, updateProject } from '@/lib/db/records'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+export const runtime = 'nodejs'
 
 export async function GET(request: Request) {
-  // Verify cron secret for security
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.json({ error: 'Missing Supabase credentials' }, { status: 500 })
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 })
   }
 
   const youtubeAccessToken = process.env.YOUTUBE_ACCESS_TOKEN?.trim()
@@ -21,22 +19,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing YouTube access token' }, { status: 500 })
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey)
-
   try {
     console.log('[Cron] Starting auto-upload job...')
 
-    // Fetch videos scheduled for upload (status = 'scheduled' and scheduled_for <= now)
-    const { data: scheduledVideos, error: fetchError } = await supabase
-      .from('projects')
-      .select('*, results(*)')
-      .eq('status', 'scheduled')
-      .lte('scheduled_for', new Date().toISOString())
-      .limit(10)
+    const scheduledVideos = await listDueScheduledProjects<{
+      id: string
+      results?: Array<{ id: string; video_url?: string | null }>
+    }>()
 
-    if (fetchError) throw fetchError
-
-    if (!scheduledVideos || scheduledVideos.length === 0) {
+    if (scheduledVideos.length === 0) {
       console.log('[Cron] No scheduled videos to upload')
       return NextResponse.json({ success: true, message: 'No videos to upload', uploaded: 0 })
     }
@@ -47,27 +38,25 @@ export async function GET(request: Request) {
 
     for (const video of scheduledVideos) {
       try {
-        // Get the result data for this project
         const result = video.results?.[0]
         if (!result) {
           console.log(`[Cron] No result found for project ${video.id}, skipping`)
           continue
         }
 
-        // Get the video URL
         const videoUrl = result.video_url
         if (!videoUrl) {
           console.log(`[Cron] No video URL for project ${video.id}, skipping`)
           continue
         }
 
-        // Upload to YouTube (call our YouTube upload API)
         const uploadUrl = new URL('/api/youtube/upload', getPublicAppUrl())
         uploadUrl.searchParams.set('resultId', result.id)
         const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${youtubeAccessToken}`,
+            'x-cron-secret': process.env.CRON_SECRET || '',
           },
         })
 
@@ -78,17 +67,11 @@ export async function GET(request: Request) {
 
         const uploadData = await uploadResponse.json()
 
-        // Update project status to published
-        const { error: updateError } = await supabase
-          .from('projects')
-          .update({
-            status: 'published',
-            published_at: new Date().toISOString(),
-            youtube_video_id: uploadData.videoId,
-          })
-          .eq('id', video.id)
-
-        if (updateError) throw updateError
+        const updated = await updateProject(video.id, {
+          status: 'published',
+          youtube_video_id: uploadData.videoId,
+        })
+        if (!updated) throw new Error('Failed to mark project published')
 
         console.log(`[Cron] Successfully uploaded video ${video.id} to YouTube: ${uploadData.videoId}`)
 
@@ -100,14 +83,7 @@ export async function GET(request: Request) {
       } catch (uploadError) {
         console.error(`[Cron] Failed to upload video ${video.id}:`, uploadError)
 
-        // Mark as failed
-        await supabase
-          .from('projects')
-          .update({
-            status: 'failed',
-            error_message: uploadError instanceof Error ? uploadError.message : 'Upload failed',
-          })
-          .eq('id', video.id)
+        await updateProject(video.id, { status: 'failed' })
 
         uploadResults.push({
           projectId: video.id,
@@ -117,7 +93,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const successCount = uploadResults.filter((r) => r.status === 'success').length
+    const successCount = uploadResults.filter((item) => item.status === 'success').length
     console.log(`[Cron] Auto-upload complete: ${successCount}/${uploadResults.length} successful`)
 
     return NextResponse.json({
@@ -128,7 +104,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('[Cron] Auto-upload error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Auto upload failed' },
+      { error: error instanceof Error ? error.message : 'Auto-upload failed' },
       { status: 500 }
     )
   }

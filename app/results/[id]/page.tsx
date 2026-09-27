@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
 import { useAuth } from '@/lib/auth/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,10 +16,6 @@ import SEOTab from '@/components/tabs/SEOTab'
 import ThumbnailTab from '@/components/tabs/ThumbnailTab'
 import Link from 'next/link'
 import { inferVideoAspectRatio } from '@/lib/video/format'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
 
 interface ResultData {
   id: string
@@ -86,21 +81,13 @@ export default function ResultsPage() {
     try {
       let resultData = null
 
-      // Try Supabase first
-      if (supabase) {
-        try {
-          const { data, error: dbError } = await supabase
-            .from('results')
-            .select('*, projects(platform, video_length_minutes)')
-            .eq('id', resultId)
-            .single()
-
-          if (!dbError && data) {
-            resultData = data
-          }
-        } catch (supabaseErr) {
-          console.log('[Results] Supabase unavailable, checking localStorage')
+      try {
+        const response = await fetch(`/api/results/${resultId}`)
+        if (response.ok) {
+          resultData = await response.json()
         }
+      } catch (loadError) {
+        console.log('[Results] Database unavailable, checking localStorage', loadError)
       }
 
       // Fallback to localStorage (for demo mode)

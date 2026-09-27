@@ -1,26 +1,12 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSessionUserId } from '@/lib/auth/session'
+import { getResultWithProject, updateResult } from '@/lib/db/records'
 import { generateSceneVideos, generateSceneImages, generateSceneAudio } from '@/lib/video/video-generator'
 import { inferVideoAspectRatio } from '@/lib/video/format'
 import { buildVoiceDirection } from '@/lib/content/generation'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
 
 export async function POST(request: Request) {
   let resultId: string | undefined
@@ -45,21 +31,13 @@ export async function POST(request: Request) {
     console.log('[API] Rendering video for result:', resultId, 'Mode:', mode)
 
     let result: any = null
+    const userId = await getSessionUserId()
 
-    // Try to fetch from Supabase if available
-    if (supabase) {
+    if (userId && process.env.DATABASE_URL) {
       try {
-        const { data, error: dbError } = await supabase
-          .from('results')
-          .select('*, projects(video_length_minutes, youtube_clip_duration, tiktok_clip_duration, platform, tone)')
-          .eq('id', resultId)
-          .single()
-
-        if (!dbError && data) {
-          result = data
-        }
-      } catch (supabaseErr) {
-        console.warn('[API] Supabase fetch failed, checking demo mode')
+        result = await getResultWithProject(resultId, userId)
+      } catch (dbError) {
+        console.warn('[API] Database fetch failed, checking demo mode', dbError)
       }
     }
 
@@ -102,12 +80,8 @@ export async function POST(request: Request) {
     const clipDuration = Number(configuredDuration) > 0 ? Number(configuredDuration) : 5
     const baseUrl = new URL(request.url).origin
 
-    // Update status to rendering
-    if (supabase) {
-      await supabase
-        .from('results')
-        .update({ processing_status: 'rendering' })
-        .eq('id', resultId)
+    if (userId) {
+      await updateResult(resultId, { processing_status: 'rendering' }, userId)
     }
 
     let scenesWithContent
@@ -165,20 +139,14 @@ export async function POST(request: Request) {
 
     console.log('[API] Generation complete, updating database...')
 
-    // Update result with scene content
-    const { error: updateError } = supabase
-      ? await supabase
-          .from('results')
-          .update({
-            scenes: scenesWithContent,
-            processing_status: 'completed',
-          })
-          .eq('id', resultId)
-      : { error: null }
-
-    if (updateError) {
-      console.error('[API] Failed to update scenes:', updateError)
-      throw updateError
+    if (userId) {
+      const updated = await updateResult(resultId, {
+        scenes: scenesWithContent,
+        processing_status: 'completed',
+      }, userId)
+      if (!updated) {
+        throw new Error('Failed to update scenes')
+      }
     }
 
     console.log('[API] Video generation complete')
@@ -196,14 +164,14 @@ export async function POST(request: Request) {
 
     // Update status to error
     try {
-      if (resultId && supabase) {
-        await supabase
-          .from('results')
-          .update({
+      if (resultId) {
+        const userId = await getSessionUserId()
+        if (userId) {
+          await updateResult(resultId, {
             processing_status: 'error',
             error_message: error instanceof Error ? error.message : 'Unknown error',
-          })
-          .eq('id', resultId)
+          }, userId)
+        }
       }
     } catch (updateError) {
       console.error('[API] Failed to update error status:', updateError)

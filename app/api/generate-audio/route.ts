@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { probeMediaDuration } from '@/lib/video/ffmpeg'
+import { blobConfigured, uploadBlob } from '@/lib/storage/blob'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'
 const ELEVENLABS_MODEL_ID = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2'
 const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts'
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const storageBucket = process.env.SUPABASE_STORAGE_BUCKET || 'videos'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -119,20 +116,15 @@ export async function POST(request: Request) {
     const duration = await probeMediaDuration(audioPath)
 
     let audioUrl: string
-    if (supabaseUrl && supabaseKey && resultId) {
-      const supabase = createClient(supabaseUrl, supabaseKey)
+    if (blobConfigured() && resultId) {
       const safeSceneId = String(sceneId || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '')
       const storagePath = `results/${resultId}/audio/scene-${safeSceneId}-${Date.now()}.mp3`
-      const { error: uploadError } = await supabase.storage
-        .from(storageBucket)
-        .upload(storagePath, buffer, {
-          contentType: 'audio/mpeg',
-          upsert: true,
-        })
-      if (uploadError) {
-        throw new Error(`Could not store generated voiceover: ${uploadError.message}`)
+      try {
+        audioUrl = await uploadBlob(storagePath, buffer, 'audio/mpeg')
+      } catch (uploadError) {
+        const message = uploadError instanceof Error ? uploadError.message : 'Blob upload failed'
+        throw new Error(`Could not store generated voiceover: ${message}`)
       }
-      audioUrl = supabase.storage.from(storageBucket).getPublicUrl(storagePath).data.publicUrl
     } else {
       audioUrl = `data:audio/mp3;base64,${buffer.toString('base64')}`
     }

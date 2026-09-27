@@ -1,28 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSessionUserId } from '@/lib/auth/session'
+import { getResultForUser } from '@/lib/db/records'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
+export const runtime = 'nodejs'
 
 export async function GET(request: Request) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
+    const userId = await getSessionUserId()
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const { searchParams } = new URL(request.url)
     const projectId = searchParams.get('projectId')
@@ -31,23 +17,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Missing projectId' }, { status: 400 })
     }
 
-    // Fetch result data
-    const { data: result, error: dbError } = await supabase
-      .from('results')
-      .select('*')
-      .eq('id', projectId)
-      .single()
+    const result = await getResultForUser<{
+      id: string
+      seo?: { title?: string }
+      video_url?: string | null
+      scenes?: Array<{
+        id?: number
+        image_url?: string
+        on_screen_text?: string
+        title?: string
+        visual_description?: string
+      }>
+      created_at?: string
+      processing_status?: string
+    }>(projectId, userId)
 
-    if (dbError || !result) {
+    if (!result) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
-    // Transform to editor format
     const editorData = {
       id: result.id,
       title: result.seo?.title || 'Untitled Video',
       videoUrl: result.video_url || null,
-      scenes: (result.scenes || []).map((scene: any, index: number) => ({
+      scenes: (result.scenes || []).map((scene, index: number) => ({
         id: scene.id || index + 1,
         image: scene.image_url || '',
         text: scene.on_screen_text || '',

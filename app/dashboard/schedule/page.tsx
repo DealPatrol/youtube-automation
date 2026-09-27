@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,11 +15,7 @@ import {
   Trash2,
   Edit,
 } from 'lucide-react'
-import { getAuthUserId, useAuth } from '@/lib/auth/auth-context'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null
+import { useAuth } from '@/lib/auth/auth-context'
 
 interface ScheduledVideo {
   id: string
@@ -41,27 +36,27 @@ export default function SchedulePage() {
 
   async function loadScheduledVideos() {
     try {
-      if (supabase) {
-        const userId = getAuthUserId(user)
-        if (!userId) return
-        const { data, error } = await supabase
-          .from('projects')
-          .select('id, title, scheduled_for, status, results(id, created_at)')
-          .eq('user_id', userId)
-          .eq('status', 'scheduled')
-          .order('scheduled_for', { ascending: true })
-
-        if (error) throw error
-        setScheduledVideos(
-          (data || []).map((project) => ({
-            ...project,
-            result_id: [...(project.results || [])].sort(
-              (a, b) =>
-                new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-            )[0]?.id,
-          }))
-        )
-      }
+      const response = await fetch('/api/projects?status=scheduled')
+      if (!response.ok) throw new Error('Failed to load scheduled videos')
+      const payload = await response.json()
+      setScheduledVideos(
+        (payload.projects || []).map((project: {
+          id: string
+          title: string
+          scheduled_for: string
+          status: string
+          results?: Array<{ id: string; created_at?: string }>
+        }) => ({
+          id: project.id,
+          title: project.title,
+          scheduled_for: project.scheduled_for,
+          status: project.status,
+          result_id: [...(project.results || [])].sort(
+            (a, b) =>
+              new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+          )[0]?.id,
+        }))
+      )
     } catch (error) {
       console.error('Failed to load scheduled videos:', error)
     } finally {
@@ -70,15 +65,13 @@ export default function SchedulePage() {
   }
 
   async function cancelSchedule(videoId: string) {
-    if (!supabase) return
-
     try {
-      const { error } = await supabase
-        .from('projects')
-        .update({ status: 'draft', scheduled_for: null })
-        .eq('id', videoId)
-
-      if (error) throw error
+      const response = await fetch(`/api/projects/${videoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'draft', scheduled_for: null }),
+      })
+      if (!response.ok) throw new Error('Failed to cancel schedule')
 
       setScheduledVideos((prev) => prev.filter((v) => v.id !== videoId))
     } catch (error) {

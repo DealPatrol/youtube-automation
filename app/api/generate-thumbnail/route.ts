@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { fal } from '@fal-ai/client'
-import { createClient } from '@supabase/supabase-js'
+import { getSessionUserId } from '@/lib/auth/session'
+import { updateResult } from '@/lib/db/records'
 
 const FAL_KEY = process.env.FAL_KEY
 
@@ -81,16 +82,13 @@ Do not draw letters or words. ${text ? `Leave uncluttered negative space for the
 
     const thumbnailUrl = result.data.images[0].url
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (resultId && supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey)
-      const { error: updateError } = await supabase
-        .from('results')
-        .update({ thumbnail_url: thumbnailUrl })
-        .eq('id', resultId)
-      if (updateError) {
-        console.warn('[API] Could not persist thumbnail URL:', updateError.message)
+    if (resultId && process.env.DATABASE_URL) {
+      const userId = await getSessionUserId()
+      if (userId) {
+        const updated = await updateResult(resultId, { thumbnail_url: thumbnailUrl }, userId)
+        if (!updated) {
+          console.warn('[API] Could not persist thumbnail URL')
+        }
       }
     }
 

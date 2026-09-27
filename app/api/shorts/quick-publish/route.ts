@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import { getSessionUserId } from '@/lib/auth/session'
+import { insertProject, insertResult, updateResult } from '@/lib/db/records'
 import {
   buildShortsOptimization,
   SHORTS_MAX_DURATION_SECONDS,
@@ -8,15 +9,13 @@ import {
 import {
   buildContentPrompt,
   buildContentResponseFormat,
+  buildFallbackGeneratedContent,
   createGenerationPlan,
   normalizeGeneratedContent,
 } from '@/lib/content/generation'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 interface QuickPublishRequest {
   topic: string
@@ -32,12 +31,17 @@ interface QuickPublishRequest {
 }
 
 export async function POST(request: Request) {
-  if (!supabaseUrl || !supabaseKey) {
+  if (!process.env.DATABASE_URL) {
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
   }
 
+  const userId = await getSessionUserId()
+  if (!userId) {
+    return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
+  }
+
   const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!openaiKey) {
+  if (openaiKey && !openaiKey.startsWith('sk-')) {
     return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
   }
 
@@ -56,7 +60,6 @@ export async function POST(request: Request) {
     voiceProvider,
     voiceId,
     accessToken,
-    user_id,
     renderMode = 'images',
     autoUpload = false,
   } = body
@@ -65,9 +68,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'topic is required' }, { status: 400 })
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey)
-  const userId = user_id || 'anonymous-user'
   const baseUrl = new URL(request.url).origin
+  const cookie = request.headers.get('cookie')
+  const forwardedHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (cookie) forwardedHeaders.cookie = cookie
   const plan = createGenerationPlan({
     platform: 'youtube',
     durationMinutes: Math.min(durationSeconds, SHORTS_MAX_DURATION_SECONDS) / 60,
@@ -75,43 +79,25 @@ export async function POST(request: Request) {
   })
 
   // ── Step 1: create project + result records ──────────────────────────────
-  const { data: projectData, error: projectError } = await supabase
-    .from('projects')
-    .insert({
-      user_id: userId,
+  let projectId: string
+  let resultId: string
+  try {
+    projectId = await insertProject({
+      userId,
       title: topic,
       topic,
       description: `YouTube Shorts: ${topic}`,
-      video_length_minutes: 1,
-      youtube_clip_duration: plan.averageSceneSeconds,
-      tiktok_clip_duration: 0,
+      videoLengthMinutes: 1,
+      youtubeClipDuration: plan.averageSceneSeconds,
+      tiktokClipDuration: 0,
       tone,
       platform: 'youtube',
     })
-    .select('id')
-    .single()
-
-  if (projectError) {
-    return NextResponse.json({ error: `Failed to create project: ${projectError.message}` }, { status: 500 })
+    resultId = await insertResult(projectId, userId)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create project'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
-
-  const projectId = projectData.id
-
-  const { data: resultData, error: resultError } = await supabase
-    .from('results')
-    .insert({
-      project_id: projectId,
-      user_id: userId,
-      processing_status: 'processing',
-    })
-    .select('id')
-    .single()
-
-  if (resultError) {
-    return NextResponse.json({ error: `Failed to create result: ${resultError.message}` }, { status: 500 })
-  }
-
-  const resultId = resultData.id
   console.log('[shorts/quick-publish] project:', projectId, 'result:', resultId)
 
   try {
@@ -123,39 +109,44 @@ export async function POST(request: Request) {
       plan,
     })
 
-    const client = new OpenAI({ apiKey: openaiKey })
+    let generatedContent
+    if (!openaiKey) {
+      generatedContent = buildFallbackGeneratedContent(topic, plan)
+    } else {
+      const client = new OpenAI({ apiKey: openaiKey })
+      let response
+      try {
+        response = await client.responses.create({
+          model: 'gpt-4o-mini',
+          input: [
+            { role: 'system', content: prompt.system },
+            { role: 'user', content: prompt.user },
+          ],
+          temperature: 0.7,
+          max_output_tokens: 6000,
+          text: { format: buildContentResponseFormat(plan.sceneCount) },
+        })
+      } catch (err: unknown) {
+        const payload = err as { error?: { message?: string }; message?: string }
+        const msg = payload.error?.message || payload.message || 'OpenAI request failed'
+        throw new Error(msg)
+      }
 
-    let response
-    try {
-      response = await client.responses.create({
-        model: 'gpt-4o-mini',
-        input: [
-          { role: 'system', content: prompt.system },
-          { role: 'user', content: prompt.user },
-        ],
-        temperature: 0.7,
-        max_output_tokens: 6000,
-        text: { format: buildContentResponseFormat(plan.sceneCount) },
-      })
-    } catch (err: any) {
-      const msg = err?.error?.message || err?.message || 'OpenAI request failed'
-      throw new Error(msg)
+      const outputText =
+        response.output_text ??
+        response.output
+          ?.map((item) => ('content' in item ? item.content?.map((part) => ('text' in part ? part.text || '' : '')).join('') : ''))
+          .join('') ??
+        ''
+
+      let parsedContent: unknown
+      try {
+        parsedContent = JSON.parse(outputText.trim())
+      } catch {
+        throw new Error('Failed to parse generated content as JSON')
+      }
+      generatedContent = normalizeGeneratedContent(parsedContent, plan)
     }
-
-    const outputText =
-      response.output_text ??
-      response.output
-        ?.map((item: any) => item.content?.map((part: any) => part.text || '').join(''))
-        .join('') ??
-      ''
-
-    let parsedContent: unknown
-    try {
-      parsedContent = JSON.parse(outputText.trim())
-    } catch {
-      throw new Error('Failed to parse generated content as JSON')
-    }
-    const generatedContent = normalizeGeneratedContent(parsedContent, plan)
 
     // ── Step 3: apply Shorts optimization (9:16, ≤60s) ───────────────────
     const optimization = buildShortsOptimization(
@@ -170,26 +161,23 @@ export async function POST(request: Request) {
       throw new Error('The generated Short did not contain any scenes')
     }
 
-    await supabase
-      .from('results')
-      .update({
-        script: generatedContent.script,
-        scenes: shortsScenes,
-        capcut_steps: generatedContent.capcut_steps || [],
-        seo: {
-          ...generatedContent.seo,
-          title: shortsMetadata.title,
-          tags: shortsMetadata.tags,
-        },
-        thumbnail: generatedContent.thumbnail,
-        processing_status: 'rendering',
-      })
-      .eq('id', resultId)
+    await updateResult(resultId, {
+      script: generatedContent.script,
+      scenes: shortsScenes,
+      capcut_steps: generatedContent.capcut_steps || [],
+      seo: {
+        ...generatedContent.seo,
+        title: shortsMetadata.title,
+        tags: shortsMetadata.tags,
+      },
+      thumbnail: generatedContent.thumbnail,
+      processing_status: 'rendering',
+    }, userId)
 
     // ── Step 4: render (generate assets per scene) ───────────────────────
     const renderResponse = await fetch(`${baseUrl}/api/render-video`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: forwardedHeaders,
       body: JSON.stringify({
         resultId,
         mode: renderMode,
@@ -208,7 +196,7 @@ export async function POST(request: Request) {
     // ── Step 5: assemble video ───────────────────────────────────────────
     const assembleResponse = await fetch(`${baseUrl}/api/assemble-video`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: forwardedHeaders,
       body: JSON.stringify({
         resultId,
         options: { aspectRatio: '9:16' },
@@ -229,7 +217,7 @@ export async function POST(request: Request) {
       const uploadParams = new URLSearchParams({ resultId, accessToken })
       const uploadResponse = await fetch(`${baseUrl}/api/youtube/upload?${uploadParams}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: forwardedHeaders,
         body: JSON.stringify({ resultId, accessToken }),
       })
       if (uploadResponse.ok) {
@@ -239,10 +227,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await supabase
-      .from('results')
-      .update({ processing_status: 'completed' })
-      .eq('id', resultId)
+    await updateResult(resultId, { processing_status: 'completed' }, userId)
 
     return NextResponse.json({
       success: true,
@@ -259,10 +244,9 @@ export async function POST(request: Request) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     console.error('[shorts/quick-publish] error:', errorMessage)
 
-    await supabase
-      .from('results')
-      .update({ processing_status: 'error', error_message: errorMessage })
-      .eq('id', resultId)
+    if (resultId) {
+      await updateResult(resultId, { processing_status: 'error', error_message: errorMessage }, userId)
+    }
 
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

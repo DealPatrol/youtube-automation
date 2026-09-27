@@ -1,6 +1,9 @@
 'use server';
 
-import { getSupabaseServerClient } from './supabase-client';
+import { sql } from 'drizzle-orm';
+import { docs, rows } from './client';
+import { updateColumns } from './mutate';
+import { ensureAppUser } from './users';
 import type {
   Script,
   Video,
@@ -11,46 +14,80 @@ import type {
   CreateScriptRequest,
 } from '../types';
 
-// ===== SCRIPTS =====
+const SCRIPT_COLUMNS = new Set([
+  'topic',
+  'format',
+  'script_text',
+  'script_json',
+  'duration_seconds',
+  'ai_model',
+  'trending_angle',
+]);
 
-export async function createScript(
-  userId: string,
-  request: CreateScriptRequest
-): Promise<Script> {
-  const supabase = getSupabaseServerClient();
+const VIDEO_COLUMNS = new Set([
+  'status',
+  'video_url',
+  'format',
+  'duration_seconds',
+  'resolution',
+  'file_size_mb',
+  'error_message',
+  'uploaded_to_youtube',
+  'youtube_url',
+  'youtube_video_id',
+  'youtube_upload_status',
+]);
 
-  const { data, error } = await supabase
-    .from('scripts')
-    .insert({
-      user_id: userId,
-      topic: request.topic,
-      format: request.format,
-      duration_seconds: request.duration_target,
-      ai_model: 'claude-3-5-sonnet',
-      trending_angle: request.trending_angle,
-    })
-    .select()
-    .single();
+const USAGE_COLUMNS = new Set([
+  'scripts_generated',
+  'videos_generated',
+  'voiceover_minutes_used',
+  'total_spent_usd',
+  'stripe_customer_id',
+  'stripe_subscription_id',
+]);
 
-  if (error) throw new Error(`Failed to create script: ${error.message}`);
-  return data as Script;
+const PRICING_COLUMNS = new Set([
+  'script_cost_usd',
+  'voiceover_cost_usd',
+  'assembly_cost_usd',
+  'total_base_cost_usd',
+  'markup_percentage',
+  'final_price_usd',
+  'payment_status',
+  'stripe_payment_intent_id',
+  'paid_at',
+]);
+
+async function one<T>(query: ReturnType<typeof sql>): Promise<T | null> {
+  const [doc] = await docs<T>(query);
+  return doc ?? null;
+}
+
+export async function createScript(userId: string, request: CreateScriptRequest): Promise<Script> {
+  await ensureAppUser({ id: userId });
+  const [script] = await docs<Script>(sql`
+    INSERT INTO scripts (user_id, topic, format, duration_seconds, ai_model, trending_angle)
+    VALUES (
+      ${userId},
+      ${request.topic},
+      ${request.format},
+      ${request.duration_target ?? null},
+      'claude-3-5-sonnet',
+      ${request.trending_angle ?? null}
+    )
+    RETURNING to_jsonb(scripts.*) AS doc
+  `);
+  if (!script) throw new Error('Failed to create script');
+  return script;
 }
 
 export async function getScript(scriptId: string, userId: string): Promise<Script | null> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('scripts')
-    .select('*')
-    .eq('id', scriptId)
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to fetch script: ${error.message}`);
-  }
-
-  return (data as Script) || null;
+  return one<Script>(sql`
+    SELECT to_jsonb(scripts.*) AS doc
+    FROM scripts
+    WHERE id = ${scriptId} AND user_id = ${userId}
+  `);
 }
 
 export async function updateScript(
@@ -58,88 +95,59 @@ export async function updateScript(
   userId: string,
   updates: Partial<Script>
 ): Promise<Script> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('scripts')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', scriptId)
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to update script: ${error.message}`);
-  return data as Script;
+  const count = await updateColumns(
+    'scripts',
+    updates,
+    SCRIPT_COLUMNS,
+    new Set(['script_json']),
+    [
+      { column: 'id', value: scriptId },
+      { column: 'user_id', value: userId },
+    ]
+  );
+  if (count === 0) throw new Error('Failed to update script');
+  const script = await getScript(scriptId, userId);
+  if (!script) throw new Error('Failed to update script');
+  return script;
 }
 
 export async function listScripts(userId: string, limit = 50): Promise<Script[]> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('scripts')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (error) throw new Error(`Failed to list scripts: ${error.message}`);
-  return (data as Script[]) || [];
+  return docs<Script>(sql`
+    SELECT to_jsonb(scripts.*) AS doc
+    FROM scripts
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `);
 }
 
 export async function deleteScript(scriptId: string, userId: string): Promise<void> {
-  const supabase = getSupabaseServerClient();
-
-  const { error } = await supabase
-    .from('scripts')
-    .delete()
-    .eq('id', scriptId)
-    .eq('user_id', userId);
-
-  if (error) throw new Error(`Failed to delete script: ${error.message}`);
+  const result = await rows(sql`
+    DELETE FROM scripts
+    WHERE id = ${scriptId} AND user_id = ${userId}
+  `);
+  if ((result.length ?? 0) < 0) {
+    throw new Error('Failed to delete script');
+  }
 }
 
-// ===== VIDEOS =====
-
-export async function createVideo(
-  userId: string,
-  scriptId: string,
-  format: string
-): Promise<Video> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('videos')
-    .insert({
-      user_id: userId,
-      script_id: scriptId,
-      format,
-      status: 'draft',
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to create video: ${error.message}`);
-  return data as Video;
+export async function createVideo(userId: string, scriptId: string, format: string): Promise<Video> {
+  await ensureAppUser({ id: userId });
+  const [video] = await docs<Video>(sql`
+    INSERT INTO videos (user_id, script_id, format, status)
+    VALUES (${userId}, ${scriptId}, ${format}, 'draft')
+    RETURNING to_jsonb(videos.*) AS doc
+  `);
+  if (!video) throw new Error('Failed to create video');
+  return video;
 }
 
 export async function getVideo(videoId: string, userId: string): Promise<Video | null> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('videos')
-    .select('*')
-    .eq('id', videoId)
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to fetch video: ${error.message}`);
-  }
-
-  return (data as Video) || null;
+  return one<Video>(sql`
+    SELECT to_jsonb(videos.*) AS doc
+    FROM videos
+    WHERE id = ${videoId} AND user_id = ${userId}
+  `);
 }
 
 export async function updateVideo(
@@ -147,38 +155,31 @@ export async function updateVideo(
   userId: string,
   updates: Partial<Video>
 ): Promise<Video> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('videos')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', videoId)
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to update video: ${error.message}`);
-  return data as Video;
+  const count = await updateColumns(
+    'videos',
+    updates,
+    VIDEO_COLUMNS,
+    new Set(),
+    [
+      { column: 'id', value: videoId },
+      { column: 'user_id', value: userId },
+    ]
+  );
+  if (count === 0) throw new Error('Failed to update video');
+  const video = await getVideo(videoId, userId);
+  if (!video) throw new Error('Failed to update video');
+  return video;
 }
 
 export async function listVideos(userId: string, limit = 50): Promise<Video[]> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('videos')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (error) throw new Error(`Failed to list videos: ${error.message}`);
-  return (data as Video[]) || [];
+  return docs<Video>(sql`
+    SELECT to_jsonb(videos.*) AS doc
+    FROM videos
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `);
 }
-
-// ===== VOICEOVERS =====
 
 export async function createVoiceover(
   userId: string,
@@ -188,184 +189,157 @@ export async function createVoiceover(
   durationSeconds?: number,
   costUsd?: number
 ): Promise<Voiceover> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('voiceovers')
-    .insert({
-      user_id: userId,
-      script_id: scriptId,
-      audio_url: audioUrl,
-      voice_provider: provider,
-      duration_seconds: durationSeconds,
-      cost_usd: costUsd,
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to create voiceover: ${error.message}`);
-  return data as Voiceover;
+  await ensureAppUser({ id: userId });
+  const [voiceover] = await docs<Voiceover>(sql`
+    INSERT INTO voiceovers (
+      user_id, script_id, audio_url, voice_provider, duration_seconds, cost_usd
+    ) VALUES (
+      ${userId},
+      ${scriptId},
+      ${audioUrl},
+      ${provider},
+      ${durationSeconds ?? null},
+      ${costUsd ?? null}
+    )
+    RETURNING to_jsonb(voiceovers.*) AS doc
+  `);
+  if (!voiceover) throw new Error('Failed to create voiceover');
+  return voiceover;
 }
 
-export async function getVoiceoverByScriptId(scriptId: string): Promise<Voiceover | null> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('voiceovers')
-    .select('*')
-    .eq('script_id', scriptId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to fetch voiceover: ${error.message}`);
-  }
-
-  return (data as Voiceover) || null;
+export async function getVoiceoverByScriptId(
+  scriptId: string,
+  userId?: string
+): Promise<Voiceover | null> {
+  return one<Voiceover>(sql`
+    SELECT to_jsonb(voiceovers.*) AS doc
+    FROM voiceovers
+    WHERE script_id = ${scriptId}
+      AND (${userId ?? null}::text IS NULL OR user_id = ${userId ?? null})
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
 }
 
-// ===== TRENDING TOPICS =====
-
-export async function getTrendingTopics(
-  platform: string,
-  limit = 20
-): Promise<TrendingTopic[]> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('trending_topics')
-    .select('*')
-    .eq('platform', platform)
-    .order('fetched_at', { ascending: false })
-    .limit(limit);
-
-  if (error) throw new Error(`Failed to fetch trending topics: ${error.message}`);
-  return (data as TrendingTopic[]) || [];
+export async function getTrendingTopics(platform: string, limit = 20): Promise<TrendingTopic[]> {
+  return docs<TrendingTopic>(sql`
+    SELECT to_jsonb(trending_topics.*) AS doc
+    FROM trending_topics
+    WHERE platform = ${platform}
+    ORDER BY fetched_at DESC
+    LIMIT ${limit}
+  `);
 }
 
 export async function createTrendingTopic(topic: TrendingTopic): Promise<TrendingTopic> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('trending_topics')
-    .insert(topic)
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to create trending topic: ${error.message}`);
-  return data as TrendingTopic;
+  const [created] = await docs<TrendingTopic>(sql`
+    INSERT INTO trending_topics (
+      platform, topic, category, search_volume, growth_percentage,
+      competition_level, suggested_format, expires_at
+    ) VALUES (
+      ${topic.platform},
+      ${topic.topic},
+      ${topic.category},
+      ${topic.search_volume},
+      ${topic.growth_percentage},
+      ${topic.competition_level},
+      ${topic.suggested_format},
+      ${topic.expires_at}
+    )
+    RETURNING to_jsonb(trending_topics.*) AS doc
+  `);
+  if (!created) throw new Error('Failed to create trending topic');
+  return created;
 }
 
-// ===== USER USAGE =====
-
 export async function getUserUsage(userId: string): Promise<UserUsage | null> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('user_usage')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to fetch user usage: ${error.message}`);
-  }
-
-  return (data as UserUsage) || null;
+  return one<UserUsage>(sql`
+    SELECT to_jsonb(user_usage.*) AS doc
+    FROM user_usage
+    WHERE user_id = ${userId}
+  `);
 }
 
 export async function initializeUserUsage(userId: string): Promise<UserUsage> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('user_usage')
-    .insert({
-      user_id: userId,
-      scripts_generated: 0,
-      videos_generated: 0,
-      voiceover_minutes_used: 0,
-      total_spent_usd: 0,
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to initialize user usage: ${error.message}`);
-  return data as UserUsage;
+  await ensureAppUser({ id: userId });
+  const [usage] = await docs<UserUsage>(sql`
+    INSERT INTO user_usage (user_id, scripts_generated, videos_generated, voiceover_minutes_used, total_spent_usd)
+    VALUES (${userId}, 0, 0, 0, 0)
+    RETURNING to_jsonb(user_usage.*) AS doc
+  `);
+  if (!usage) throw new Error('Failed to initialize user usage');
+  return usage;
 }
 
-export async function updateUserUsage(
-  userId: string,
-  updates: Partial<UserUsage>
-): Promise<UserUsage> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('user_usage')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to update user usage: ${error.message}`);
-  return data as UserUsage;
+export async function updateUserUsage(userId: string, updates: Partial<UserUsage>): Promise<UserUsage> {
+  const count = await updateColumns(
+    'user_usage',
+    updates,
+    USAGE_COLUMNS,
+    new Set(),
+    [{ column: 'user_id', value: userId }]
+  );
+  if (count === 0) throw new Error('Failed to update user usage');
+  const usage = await getUserUsage(userId);
+  if (!usage) throw new Error('Failed to update user usage');
+  return usage;
 }
-
-// ===== VIDEO PRICING =====
 
 export async function createVideoPricing(
   userId: string,
   videoId: string,
   pricing: Partial<VideoPricing>
 ): Promise<VideoPricing> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('video_pricing')
-    .insert({
-      user_id: userId,
-      video_id: videoId,
-      ...pricing,
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to create video pricing: ${error.message}`);
-  return data as VideoPricing;
+  await ensureAppUser({ id: userId });
+  const [created] = await docs<VideoPricing>(sql`
+    INSERT INTO video_pricing (
+      user_id, video_id, script_cost_usd, voiceover_cost_usd, assembly_cost_usd,
+      total_base_cost_usd, markup_percentage, final_price_usd, payment_status,
+      stripe_payment_intent_id
+    ) VALUES (
+      ${userId},
+      ${videoId},
+      ${pricing.script_cost_usd ?? null},
+      ${pricing.voiceover_cost_usd ?? null},
+      ${pricing.assembly_cost_usd ?? null},
+      ${pricing.total_base_cost_usd ?? null},
+      ${pricing.markup_percentage ?? null},
+      ${pricing.final_price_usd ?? null},
+      ${pricing.payment_status ?? 'pending'},
+      ${pricing.stripe_payment_intent_id ?? null}
+    )
+    RETURNING to_jsonb(video_pricing.*) AS doc
+  `);
+  if (!created) throw new Error('Failed to create video pricing');
+  return created;
 }
 
 export async function getVideoPricing(videoId: string): Promise<VideoPricing | null> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('video_pricing')
-    .select('*')
-    .eq('video_id', videoId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    throw new Error(`Failed to fetch video pricing: ${error.message}`);
-  }
-
-  return (data as VideoPricing) || null;
+  return one<VideoPricing>(sql`
+    SELECT to_jsonb(video_pricing.*) AS doc
+    FROM video_pricing
+    WHERE video_id = ${videoId}
+  `);
 }
 
 export async function updateVideoPricing(
   pricingId: string,
   updates: Partial<VideoPricing>
 ): Promise<VideoPricing> {
-  const supabase = getSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from('video_pricing')
-    .update(updates)
-    .eq('id', pricingId)
-    .select()
-    .single();
-
-  if (error) throw new Error(`Failed to update video pricing: ${error.message}`);
-  return data as VideoPricing;
+  const count = await updateColumns(
+    'video_pricing',
+    updates,
+    PRICING_COLUMNS,
+    new Set(),
+    [{ column: 'id', value: pricingId }],
+    false
+  );
+  if (count === 0) throw new Error('Failed to update video pricing');
+  const [pricing] = await docs<VideoPricing>(sql`
+    SELECT to_jsonb(video_pricing.*) AS doc
+    FROM video_pricing
+    WHERE id = ${pricingId}
+  `);
+  if (!pricing) throw new Error('Failed to update video pricing');
+  return pricing;
 }

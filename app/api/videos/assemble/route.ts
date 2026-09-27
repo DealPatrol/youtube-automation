@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUserId } from '@/lib/auth/session';
 import { videoAssembler } from '@/lib/video/video-assembler';
 import { getVoiceoverByScriptId, getScript, updateVideo, createVideo } from '@/lib/db/queries';
 import type { ApiResponse } from '@/lib/types';
@@ -17,16 +18,13 @@ interface AssembleVideoRequest {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get user from auth header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const userId = await getSessionUserId();
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' } as ApiResponse<null>,
         { status: 401 }
       );
     }
-
-    const userId = authHeader.replace('Bearer ', '');
 
     // Parse request body
     const body: AssembleVideoRequest = await request.json();

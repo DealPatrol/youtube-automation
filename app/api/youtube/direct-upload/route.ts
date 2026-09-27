@@ -1,22 +1,8 @@
 import { google } from 'googleapis'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { getPublicAppUrl } from '@/lib/config/app-url'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-let supabase: any = null
-
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey)
-  } catch (error) {
-    console.warn('[API] Failed to initialize Supabase:', error)
-  }
-} else {
-  console.warn('[API] Supabase credentials not configured')
-}
+import { getSessionUserId } from '@/lib/auth/session'
+import { getResultForUser, updateProject, updateResult } from '@/lib/db/records'
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,14 +39,17 @@ export async function POST(request: NextRequest) {
 
     console.log('[API] YouTube upload initiated for:', resultId)
 
-    // Get user's YouTube refresh token from Supabase
-    const { data: result, error: dbError } = await supabase
-      .from('results')
-      .select('youtube_refresh_token, project_id')
-      .eq('id', resultId)
-      .single()
+    const userId = await getSessionUserId()
+    if (!userId) {
+      return NextResponse.json({ error: 'Sign in required' }, { status: 401 })
+    }
 
-    if (dbError || !result?.youtube_refresh_token) {
+    const result = await getResultForUser<{
+      youtube_refresh_token?: string | null
+      project_id?: string
+    }>(resultId, userId)
+
+    if (!result?.youtube_refresh_token) {
       console.error('[API] No YouTube token found for result:', resultId)
       return NextResponse.json(
         { error: 'YouTube not authenticated. Please reconnect your YouTube account.' },
@@ -128,30 +117,23 @@ export async function POST(request: NextRequest) {
 
     console.log('[API] Video uploaded successfully:', youtubeUrl)
 
-    // Update result in Supabase
-    const { error: updateError } = await supabase
-      .from('results')
-      .update({
-        youtube_video_id: youtubeVideoId,
-        youtube_url: youtubeUrl,
-        youtube_status: 'uploaded',
-      })
-      .eq('id', resultId)
+    const updated = await updateResult(resultId, {
+      youtube_video_id: youtubeVideoId,
+      youtube_url: youtubeUrl,
+      youtube_status: 'uploaded',
+    }, userId)
 
-    if (updateError) {
-      console.error('[API] Failed to update result:', updateError)
+    if (!updated) {
+      console.error('[API] Failed to update result')
     }
     if (publishAt && result.project_id) {
-      const { error: scheduleError } = await supabase
-        .from('projects')
-        .update({
-          status: 'scheduled',
-          scheduled_for: publishAt,
-          youtube_video_id: youtubeVideoId,
-        })
-        .eq('id', result.project_id)
-      if (scheduleError) {
-        console.error('[API] Failed to update project schedule:', scheduleError)
+      const scheduled = await updateProject(result.project_id, {
+        status: 'scheduled',
+        scheduled_for: publishAt,
+        youtube_video_id: youtubeVideoId,
+      }, userId)
+      if (!scheduled) {
+        console.error('[API] Failed to update project schedule')
       }
     }
 

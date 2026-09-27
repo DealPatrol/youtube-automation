@@ -4,7 +4,7 @@ Production-oriented YouTube automation stack with:
 - Next.js app router frontend and API routes
 - FastAPI video assembly backend
 - Python workers for rendering and uploads
-- Supabase for auth, data, and storage
+- Postgres (Neon) for data, Better Auth for sessions, Vercel Blob for video files
 
 ## Create a video end-to-end (CLI)
 
@@ -42,7 +42,11 @@ Do not commit `pnpm-lock.yaml` or use `pnpm install` in this repo.
    ```bash
    npm install
    ```
-3. Start the Next.js app.
+3. Apply the schema to `DATABASE_URL` (uses `DATABASE_URL_UNPOOLED` when set).
+   ```bash
+   npm run migrate
+   ```
+4. Start the Next.js app.
    ```bash
    npm run dev
    ```
@@ -54,10 +58,11 @@ Do not commit `pnpm-lock.yaml` or use `pnpm install` in this repo.
 ## Required environment variables
 
 Minimum app-only flow:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
+- `DATABASE_URL` (pooled Neon URL is fine at runtime)
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL`
+- `BLOB_READ_WRITE_TOKEN` (video file uploads)
+- `OPENAI_API_KEY` (optional: script generation falls back to local copy when unset)
 
 Required for YouTube OAuth/upload:
 - `YOUTUBE_CLIENT_ID`

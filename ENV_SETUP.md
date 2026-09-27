@@ -7,18 +7,22 @@ This document reflects the variables actually referenced by the current Next.js 
 Required at runtime for most connected app flows (not required by `npm run build`):
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET=videos
+DATABASE_URL=
+DATABASE_URL_UNPOOLED=
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_TRUSTED_ORIGINS=
+BLOB_READ_WRITE_TOKEN=
 OPENAI_API_KEY=
 NEXTAUTH_URL=http://localhost:3000
 ```
 
 Notes:
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` is required by the auth context and dashboard pages.
-- `SUPABASE_SERVICE_ROLE_KEY` is required by server routes that write projects, results, uploads, and package downloads.
-- `SUPABASE_STORAGE_BUCKET` defaults to `videos` if omitted.
+- `DATABASE_URL` is the Postgres connection for this deployment. Each Vercel project uses its own Neon database. Runtime can use the pooled URL. `npm run migrate` prefers `DATABASE_URL_UNPOOLED` (the direct Neon URL) and falls back to `DATABASE_URL`.
+- `BETTER_AUTH_SECRET` signs sessions. Generate a long random value per project.
+- `BETTER_AUTH_URL` is that project's public origin. Optional `BETTER_AUTH_TRUSTED_ORIGINS` is a comma-separated list of extra origins (preview URLs).
+- Auth tables live in the same database. Apply them with `npm run migrate`.
+- `BLOB_READ_WRITE_TOKEN` stores video files in Vercel Blob under the `videos/` prefix.
 - On Render, `RENDER_EXTERNAL_URL` is detected automatically and `NEXTAUTH_URL` can be omitted.
   Set `NEXTAUTH_URL` when using a custom domain.
 

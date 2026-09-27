@@ -5,10 +5,9 @@ import { getRuntimeStatusEnv } from '@/lib/config/runtime-status'
 
 test('getRuntimeStatusEnv reports required and optional integrations', () => {
   const env = {
-    NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-key',
-    SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
-    SUPABASE_STORAGE_BUCKET: 'videos',
+    DATABASE_URL: 'postgresql://localhost/video_db',
+    BETTER_AUTH_SECRET: 'secret',
+    BLOB_READ_WRITE_TOKEN: 'blob-token',
     OPENAI_API_KEY: 'sk-test',
     FAL_KEY: 'fal-test',
     FASTAPI_URL: 'http://localhost:8000',
@@ -22,10 +21,9 @@ test('getRuntimeStatusEnv reports required and optional integrations', () => {
   }
 
   assert.deepEqual(getRuntimeStatusEnv(env), {
-    nextPublicSupabaseUrl: true,
-    nextPublicSupabaseAnonKey: true,
-    supabaseServiceRoleKey: true,
-    supabaseStorageBucket: true,
+    databaseUrl: true,
+    betterAuthSecret: true,
+    blobToken: true,
     openaiApiKey: true,
     falKey: true,
     videoAssemblyUrl: true,
@@ -36,10 +34,9 @@ test('getRuntimeStatusEnv reports required and optional integrations', () => {
 
 test('getRuntimeStatusEnv treats missing values as false', () => {
   assert.deepEqual(getRuntimeStatusEnv({}), {
-    nextPublicSupabaseUrl: false,
-    nextPublicSupabaseAnonKey: false,
-    supabaseServiceRoleKey: false,
-    supabaseStorageBucket: false,
+    databaseUrl: false,
+    betterAuthSecret: false,
+    blobToken: false,
     openaiApiKey: false,
     falKey: false,
     videoAssemblyUrl: false,

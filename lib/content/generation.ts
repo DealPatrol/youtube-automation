@@ -362,6 +362,62 @@ export function buildContentResponseFormat(sceneCount: number) {
   }
 }
 
+export function buildFallbackGeneratedContent(topic: string, plan: GenerationPlan): GeneratedContent {
+  const scenes: GeneratedScene[] = []
+  for (let index = 0; index < plan.sceneCount; index += 1) {
+    const start = index * plan.averageSceneSeconds
+    const end = Math.min(plan.totalSeconds, start + plan.averageSceneSeconds)
+    scenes.push({
+      id: index + 1,
+      title: `${topic} — scene ${index + 1}`,
+      start_time: formatContentTimestamp(start),
+      end_time: formatContentTimestamp(end),
+      duration: Math.max(1, end - start),
+      visual_description: `Show a clear visual about ${topic}.`,
+      on_screen_text: topic,
+      narration: `Here is the key point about ${topic}.`,
+    })
+  }
+
+  return {
+    script: {
+      title: topic,
+      duration: plan.totalSeconds,
+      content: `Fallback script for ${topic}. No external AI key was configured, so this package was generated locally.`,
+      sections: scenes.map((scene) => ({
+        time: scene.start_time,
+        speaker: 'Narrator',
+        text: scene.narration,
+      })),
+    },
+    scenes,
+    capcut_steps: [
+      'Import the scene list',
+      'Add the narration to each clip',
+      'Export the finished video',
+    ],
+    seo: {
+      title: topic,
+      description: `A video about ${topic}.`,
+      tags: [topic],
+      keywords: [topic],
+      hashtags: ['#video'],
+      thumbnail_tips: 'Use large, high-contrast title text.',
+      pinned_comment: 'Thanks for watching.',
+    },
+    thumbnail: {
+      text: topic,
+      image_prompt: `Bold thumbnail about ${topic}`,
+      emotion: 'curious',
+      design_description: 'Large title on a simple background.',
+      color_palette: ['#111111', '#ffffff'],
+      text_suggestions: [topic],
+      layout_tips: 'Keep the title readable on mobile.',
+      accessibility_notes: 'Use high contrast between text and background.',
+    },
+  }
+}
+
 export function buildVoiceDirection(tone: unknown, platform: unknown): string {
   const safeTone = String(tone || 'neutral').toLowerCase()
   const platformName = resolveContentPlatform(platform)

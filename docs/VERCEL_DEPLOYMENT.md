@@ -18,10 +18,12 @@ that are not configured return a clear runtime error or remain unavailable.
 Configure only the integrations used by the web app:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET=videos
+DATABASE_URL=
+DATABASE_URL_UNPOOLED=
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=https://your-domain.example
+BETTER_AUTH_TRUSTED_ORIGINS=
+BLOB_READ_WRITE_TOKEN=
 OPENAI_API_KEY=
 FAL_KEY=
 NEXTAUTH_URL=https://your-domain.example
@@ -31,10 +33,14 @@ CRON_SECRET=
 YOUTUBE_ACCESS_TOKEN=
 ```
 
+Each Vercel project (`youtube-automation-e2ej`, `youtube-automation-4ori`,
+`v0-next-js-you-tube-ai`) gets its own `DATABASE_URL`, `BETTER_AUTH_SECRET`,
+`BETTER_AUTH_URL`, and `BLOB_READ_WRITE_TOKEN`. Apply the schema once per
+database with `npm run migrate` using that project's direct Postgres URL.
+
 Optional media, X, branding, and model settings are listed in `.env.example`.
-Do not add worker-only variables such as `DATABASE_URL`, `REDIS_URL`, `DB_*`, or
-`STORAGE_*` to Vercel unless a Next.js route is deliberately configured to call
-an external worker through `FASTAPI_URL` or `VIDEO_ASSEMBLY_URL`.
+Keep `REDIS_URL`, `DB_*`, and `STORAGE_*` on the worker host. The Next.js app
+does need `DATABASE_URL` and `BLOB_READ_WRITE_TOKEN`.
 
 ## Limits
 
