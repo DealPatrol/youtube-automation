@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getSessionUserId } from '@/lib/auth/session'
+import { requireUser } from '@/lib/auth/require-user'
 import { getResultWithProject, updateResult } from '@/lib/db/records'
 import { generateSceneVideos, generateSceneImages, generateSceneAudio } from '@/lib/video/video-generator'
-import { inferVideoAspectRatio } from '@/lib/video/format'
+import { inferVideoAspectRatio, resolveProjectClipSeconds } from '@/lib/video/format'
 import { buildVoiceDirection } from '@/lib/content/generation'
 
 export const runtime = 'nodejs'
@@ -10,6 +10,14 @@ export const maxDuration = 300
 
 export async function POST(request: Request) {
   let resultId: string | undefined
+  const auth = await requireUser()
+  if (auth.response) return auth.response
+  const userId = auth.userId
+
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
+  }
+
   try {
     const {
       resultId: requestResultId,
@@ -30,22 +38,9 @@ export async function POST(request: Request) {
 
     console.log('[API] Rendering video for result:', resultId, 'Mode:', mode)
 
-    let result: any = null
-    const userId = await getSessionUserId()
-
-    if (userId && process.env.DATABASE_URL) {
-      try {
-        result = await getResultWithProject(resultId, userId)
-      } catch (dbError) {
-        console.warn('[API] Database fetch failed, checking demo mode', dbError)
-      }
-    }
-
-    // Fallback to demo mode (stored globally)
-    if (!result && typeof globalThis !== 'undefined' && globalThis.demoResults) {
-      result = globalThis.demoResults[resultId]
-      console.log('[API] Using demo mode result')
-    }
+    // Only the signed-in owner's stored result can be rendered; there is no
+    // anonymous/demo path because rendering spends paid API credits.
+    const result: any = await getResultWithProject(resultId, userId)
 
     if (!result) {
       console.error('[API] Result not found:', resultId)
@@ -73,16 +68,9 @@ export async function POST(request: Request) {
       project?.video_length_minutes,
       project?.platform
     )
-    const configuredDuration =
-      project?.platform === 'tiktok'
-        ? project?.tiktok_clip_duration
-        : project?.youtube_clip_duration
-    const clipDuration = Number(configuredDuration) > 0 ? Number(configuredDuration) : 5
-    const baseUrl = new URL(request.url).origin
+    const clipDuration = resolveProjectClipSeconds(project)
 
-    if (userId) {
-      await updateResult(resultId, { processing_status: 'rendering' }, userId)
-    }
+    await updateResult(resultId, { processing_status: 'rendering' }, userId)
 
     let scenesWithContent
     let successMessage
@@ -107,8 +95,8 @@ export async function POST(request: Request) {
         `[API] Generating ${videoScenes.length} AI motion clips and ${imageScenes.length} supporting images`
       )
       const [generatedVideos, generatedImages] = await Promise.all([
-        generateSceneVideos(videoScenes, clipDuration, { baseUrl, aspectRatio }),
-        generateSceneImages(imageScenes, { baseUrl, aspectRatio }),
+        generateSceneVideos(videoScenes, clipDuration, { aspectRatio }),
+        generateSceneImages(imageScenes, { aspectRatio }),
       ])
       const generatedById = new Map(
         [...generatedVideos, ...generatedImages].map((scene) => [scene.id, scene])
@@ -120,7 +108,7 @@ export async function POST(request: Request) {
       successMessage = `Hybrid render created ${videoScenes.length} motion clips and ${imageScenes.length} images`
     } else {
       console.log('[API] Generating static images for scenes (faster)...')
-      scenesWithContent = await generateSceneImages(scenes, { baseUrl, aspectRatio })
+      scenesWithContent = await generateSceneImages(scenes, { aspectRatio })
       successMessage = 'Scene images generated successfully'
     }
 
@@ -130,7 +118,6 @@ export async function POST(request: Request) {
       provider: voiceProvider,
       voice,
       voiceId,
-      baseUrl,
       aspectRatio,
       resultId,
       voiceInstructions: buildVoiceDirection(project?.tone, project?.platform),
@@ -139,14 +126,12 @@ export async function POST(request: Request) {
 
     console.log('[API] Generation complete, updating database...')
 
-    if (userId) {
-      const updated = await updateResult(resultId, {
-        scenes: scenesWithContent,
-        processing_status: 'completed',
-      }, userId)
-      if (!updated) {
-        throw new Error('Failed to update scenes')
-      }
+    const updated = await updateResult(resultId, {
+      scenes: scenesWithContent,
+      processing_status: 'completed',
+    }, userId)
+    if (!updated) {
+      throw new Error('Failed to update scenes')
     }
 
     console.log('[API] Video generation complete')
@@ -165,13 +150,10 @@ export async function POST(request: Request) {
     // Update status to error
     try {
       if (resultId) {
-        const userId = await getSessionUserId()
-        if (userId) {
-          await updateResult(resultId, {
-            processing_status: 'error',
-            error_message: error instanceof Error ? error.message : 'Unknown error',
-          }, userId)
-        }
+        await updateResult(resultId, {
+          processing_status: 'error',
+          error_message: error instanceof Error ? error.message : 'Unknown error',
+        }, userId)
       }
     } catch (updateError) {
       console.error('[API] Failed to update error status:', updateError)

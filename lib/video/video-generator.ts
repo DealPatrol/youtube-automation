@@ -2,7 +2,8 @@
  * Video Generation Service
  * Handles video creation using AI-generated video clips for scenes
  */
-import { getPublicAppUrl } from '@/lib/config/app-url'
+import { generateImage, generateVideoClip } from '@/lib/media/fal-media'
+import { synthesizeVoiceover } from '@/lib/media/voiceover'
 
 export interface VideoScene {
   id: number
@@ -31,14 +32,11 @@ export interface VoiceOptions {
   provider?: VoiceProvider
   voice?: string
   voiceId?: string
+  /** @deprecated media is generated in-process; kept for call-site compatibility */
   baseUrl?: string
   aspectRatio?: '16:9' | '9:16'
   resultId?: string
   voiceInstructions?: string
-}
-
-function resolveBaseUrl(baseUrl?: string): string {
-  return (baseUrl || getPublicAppUrl()).replace(/\/$/, '')
 }
 
 function configuredConcurrency(envName: string, fallback: number, maximum: number): number {
@@ -75,7 +73,7 @@ export async function generateSceneAudio(
   scenes: VideoScene[],
   options: VoiceOptions = {}
 ): Promise<VideoScene[]> {
-  const { provider, voice = 'alloy', voiceId, baseUrl, resultId, voiceInstructions } = options
+  const { provider, voice = 'alloy', voiceId, resultId, voiceInstructions } = options
   const concurrency = configuredConcurrency('MEDIA_GENERATION_CONCURRENCY', 3, 5)
 
   return mapWithConcurrency(scenes, concurrency, async (scene) => {
@@ -84,26 +82,15 @@ export async function generateSceneAudio(
       }
       console.log(`[v0] Generating voiceover for scene ${scene.id}: ${scene.title}`)
       
-      const response = await fetch(`${resolveBaseUrl(baseUrl)}/api/generate-audio`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          narration: scene.narration,
-          sceneId: scene.id,
-          voice,
-          voiceProvider: provider,
-          voiceId,
-          resultId,
-          voiceInstructions,
-        }),
+      const data = await synthesizeVoiceover({
+        narration: scene.narration,
+        sceneId: scene.id,
+        voice,
+        voiceProvider: provider,
+        voiceId,
+        resultId,
+        voiceInstructions,
       })
-
-      if (!response.ok) {
-        const errorBody = await response.text()
-        throw new Error(`Failed to generate audio for scene ${scene.id}: ${errorBody}`)
-      }
-
-      const data = await response.json()
       if (!data.audioUrl || !Number.isFinite(data.duration) || data.duration <= 0) {
         throw new Error(`Voiceover service returned invalid media for scene ${scene.id}`)
       }
@@ -128,7 +115,6 @@ export async function generateSceneVideos(
   options: Pick<VoiceOptions, 'baseUrl' | 'aspectRatio'> = {}
 ): Promise<VideoScene[]> {
   const updatedScenes = []
-  const baseUrl = resolveBaseUrl(options.baseUrl)
   const aspectRatio = options.aspectRatio || '16:9'
 
   for (const scene of scenes) {
@@ -136,23 +122,12 @@ export async function generateSceneVideos(
       console.log(`[v0] Generating ${duration}s video for scene ${scene.id}: ${scene.title}`)
       
       // Use fal.ai Kling Video to generate actual video clips
-      const response = await fetch(`${baseUrl}/api/generate-video`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: `${scene.visual_description}. ${scene.on_screen_text}`,
-          sceneId: scene.id,
-          duration: duration,
-          aspectRatio,
-        }),
+      const data = await generateVideoClip({
+        prompt: `${scene.visual_description}. ${scene.on_screen_text}`,
+        duration,
+        aspectRatio,
       })
 
-      if (!response.ok) {
-        throw new Error(`Failed to generate video for scene ${scene.id}`)
-      }
-
-      const data = await response.json()
-      
       updatedScenes.push({
         ...scene,
         video_url: data.videoUrl,
@@ -181,24 +156,14 @@ export async function generateSceneVideos(
 
       // Fallback to image generation if video fails
       try {
-        const imageResponse = await fetch(`${baseUrl}/api/generate-image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: scene.visual_description,
-            aspectRatio,
-          }),
+        const imageData = await generateImage({
+          prompt: scene.visual_description,
+          aspectRatio,
         })
-
-        if (imageResponse.ok) {
-          const imageData = await imageResponse.json()
-          updatedScenes.push({
-            ...scene,
-            image_url: imageData.imageUrl,
-          })
-        } else {
-          throw new Error('Image fallback failed')
-        }
+        updatedScenes.push({
+          ...scene,
+          image_url: imageData.imageUrl,
+        })
       } catch (fallbackError) {
         console.error(`[v0] Fallback image generation failed for scene ${scene.id}:`, fallbackError)
 
@@ -231,7 +196,6 @@ export async function generateSceneImages(
   scenes: VideoScene[],
   options: Pick<VoiceOptions, 'baseUrl' | 'aspectRatio'> = {}
 ): Promise<VideoScene[]> {
-  const baseUrl = resolveBaseUrl(options.baseUrl)
   const aspectRatio = options.aspectRatio || '16:9'
   const concurrency = configuredConcurrency('MEDIA_GENERATION_CONCURRENCY', 3, 5)
 
@@ -239,20 +203,10 @@ export async function generateSceneImages(
     try {
       console.log(`[v0] Generating image for scene ${scene.id}: ${scene.title}`)
       
-      const response = await fetch(`${baseUrl}/api/generate-image`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: scene.visual_description,
-          aspectRatio,
-        }),
+      const data = await generateImage({
+        prompt: scene.visual_description,
+        aspectRatio,
       })
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate image for scene ${scene.id}`)
-      }
-
-      const data = await response.json()
       if (!data.imageUrl) throw new Error(`Image service returned no URL for scene ${scene.id}`)
       const updatedScene = {
         ...scene,

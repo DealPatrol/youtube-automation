@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { signIn, signUp, signInWithGoogle } from '@/lib/auth/actions'
 import { useAuth } from '@/lib/auth/auth-context'
-import { loginDemo } from '@/lib/auth/auth-context'
 import { useEffect } from 'react'
 
 export default function LoginPage() {
@@ -65,19 +64,6 @@ export default function LoginPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed')
     } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleDemoMode() {
-    setError('')
-    setLoading(true)
-    try {
-      await loginDemo()
-      // Navigate to home after setting demo user
-      setTimeout(() => router.push('/'), 100)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Demo mode failed')
       setLoading(false)
     }
   }
@@ -139,18 +125,6 @@ export default function LoginPage() {
             Continue with Google
           </Button>
 
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={handleDemoMode}
-            disabled={loading}
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : null}
-            Demo Mode
-          </Button>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

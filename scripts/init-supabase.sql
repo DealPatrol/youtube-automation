@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS projects (
   title TEXT NOT NULL,
   topic TEXT NOT NULL,
   description TEXT,
-  video_length_minutes INTEGER NOT NULL,
+  video_length_minutes NUMERIC(6,2) NOT NULL,
   tone TEXT NOT NULL,
   platform TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),

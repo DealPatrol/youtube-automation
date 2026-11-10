@@ -87,23 +87,7 @@ export default function ResultsPage() {
           resultData = await response.json()
         }
       } catch (loadError) {
-        console.log('[Results] Database unavailable, checking localStorage', loadError)
-      }
-
-      // Fallback to localStorage (for demo mode)
-      if (!resultData && typeof window !== 'undefined') {
-        try {
-          const demoResults = JSON.parse(localStorage.getItem('demoResults') || '{}')
-          if (demoResults[resultId]) {
-            resultData = {
-              id: resultId,
-              ...demoResults[resultId],
-            }
-            console.log('[Results] Loaded result from localStorage')
-          }
-        } catch (storageErr) {
-          console.warn('[Results] Failed to load from localStorage:', storageErr)
-        }
+        console.warn('[Results] Failed to load result', loadError)
       }
 
       if (!resultData) {

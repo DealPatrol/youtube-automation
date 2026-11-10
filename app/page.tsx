@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, CheckCircle2, Loader2, PlayCircle, Sparkles, Zap, TrendingUp } from 'lucide-react'
-import { getAuthUserId, useAuth } from '@/lib/auth/auth-context'
+import { useAuth } from '@/lib/auth/auth-context'
 
 export default function GeneratorPage() {
   const router = useRouter()
@@ -60,7 +60,6 @@ export default function GeneratorPage() {
           tiktok_clip_duration: parseInt(tiktokClipDuration),
           tone,
           platform,
-          user_id: getAuthUserId(user),
         }),
       })
 
@@ -91,18 +90,6 @@ export default function GeneratorPage() {
       
       if (!data.resultId) {
         throw new Error('No result ID received from server')
-      }
-
-      // Store result in localStorage as fallback for demo mode
-      if (typeof window !== 'undefined') {
-        try {
-          const demoResults = JSON.parse(localStorage.getItem('demoResults') || '{}')
-          demoResults[data.resultId] = data
-          localStorage.setItem('demoResults', JSON.stringify(demoResults))
-          console.log('[v0] Cached result in localStorage:', data.resultId)
-        } catch (storageErr) {
-          console.warn('[v0] Failed to cache result:', storageErr)
-        }
       }
 
       router.push(`/results/${data.resultId}`)
@@ -276,6 +263,7 @@ export default function GeneratorPage() {
                       >
                         {platform === 'tiktok' || platform === 'instagram' ? (
                           <>
+                            <option value="0.25">15 sec</option>
                             <option value="0.5">30 sec</option>
                             <option value="1">60 sec</option>
                             <option value="1.5">90 sec</option>
@@ -283,6 +271,13 @@ export default function GeneratorPage() {
                           </>
                         ) : (
                           <>
+                            {platform === 'youtube' && (
+                              <optgroup label="YouTube Shorts (vertical 9:16)">
+                                <option value="0.25">15 sec Short</option>
+                                <option value="0.5">30 sec Short</option>
+                                <option value="1">60 sec Short</option>
+                              </optgroup>
+                            )}
                             <option value="5">5 min</option>
                             <option value="8">8 min</option>
                             <option value="10">10 min</option>
@@ -305,8 +300,12 @@ export default function GeneratorPage() {
                           const nextPlatform = e.target.value
                           const vertical = nextPlatform === 'tiktok' || nextPlatform === 'instagram'
                           setPlatform(nextPlatform)
-                          if (vertical && Number(videoLength) > 3) setVideoLength('1')
-                          if (!vertical && Number(videoLength) < 5) setVideoLength('10')
+                          const length = Number(videoLength)
+                          if (vertical && length > 3) setVideoLength('1')
+                          // YouTube keeps Shorts lengths (<= 60s); other horizontal platforms need long-form.
+                          if (!vertical && length < 5 && !(nextPlatform === 'youtube' && length <= 1)) {
+                            setVideoLength('10')
+                          }
                         }}
                         disabled={loading}
                         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
@@ -346,7 +345,7 @@ export default function GeneratorPage() {
 
                     <div className="space-y-2">
                       <label htmlFor="tiktok-clip-duration" className="text-sm font-semibold block">
-                        TikTok clip duration
+                        Shorts / TikTok scene duration
                       </label>
                       <select
                         id="tiktok-clip-duration"
@@ -364,7 +363,7 @@ export default function GeneratorPage() {
                         <option value="60">60 seconds</option>
                         <option value="90">90 seconds</option>
                       </select>
-                      <p className="text-xs text-muted-foreground">TikTok sweet spot: 15-90 sec.</p>
+                      <p className="text-xs text-muted-foreground">Used for YouTube Shorts, TikTok, and Reels. Sweet spot: 5-15 sec per scene.</p>
                     </div>
                   </div>
 
