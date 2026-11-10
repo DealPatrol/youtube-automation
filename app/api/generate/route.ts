@@ -9,6 +9,7 @@ import {
   type GeneratedContent,
 } from '@/lib/content/generation'
 import { getSessionUserId } from '@/lib/auth/session'
+import { normalizeVideoLengthMinutes } from '@/lib/db/project-length'
 import { insertProject, insertResult, updateResult } from '@/lib/db/records'
 
 export const runtime = 'nodejs'
@@ -102,12 +103,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
+    let videoLengthMinutes: number
+    try {
+      videoLengthMinutes = normalizeVideoLengthMinutes(video_length_minutes)
+    } catch (validationError) {
+      return NextResponse.json(
+        { error: validationError instanceof Error ? validationError.message : 'Invalid video length' },
+        { status: 400 }
+      )
+    }
+
     const projectId = await insertProject({
       userId,
       title: topic,
       topic,
       description,
-      videoLengthMinutes: video_length_minutes,
+      videoLengthMinutes,
       youtubeClipDuration: youtube_clip_duration,
       tiktokClipDuration: tiktok_clip_duration,
       tone,
@@ -117,7 +128,7 @@ export async function POST(request: Request) {
 
     const plan = createGenerationPlan({
       platform,
-      durationMinutes: video_length_minutes,
+      durationMinutes: videoLengthMinutes,
       youtubeSceneSeconds: youtube_clip_duration,
       verticalSceneSeconds: tiktok_clip_duration,
     })

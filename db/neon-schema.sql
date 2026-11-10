@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS projects (
   title TEXT NOT NULL,
   topic TEXT NOT NULL,
   description TEXT,
-  video_length_minutes INTEGER NOT NULL,
+  video_length_minutes NUMERIC(6,2) NOT NULL,
   tone TEXT NOT NULL,
   platform TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
@@ -46,6 +46,22 @@ CREATE TABLE IF NOT EXISTS results (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
+
+-- Shorts/vertical videos are 15-90 seconds, i.e. fractional minutes (0.25, 0.5, 1.5).
+-- The original INTEGER column rejected those inserts, so store minutes as NUMERIC.
+-- Lossless and idempotent for existing integer data.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'projects'
+      AND column_name = 'video_length_minutes'
+      AND data_type = 'integer'
+  ) THEN
+    ALTER TABLE public.projects ALTER COLUMN video_length_minutes TYPE numeric(6,2);
+  END IF;
+END $$;
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS projects_user_id_idx ON projects(user_id);

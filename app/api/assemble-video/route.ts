@@ -13,6 +13,7 @@ import { ensureFfmpegAvailable, resolveFfmpegPath } from '@/lib/video/ffmpeg'
 import {
   buildVideoFilter,
   inferVideoAspectRatio,
+  resolveProjectClipSeconds,
   resolveVideoFormat,
   type VideoFormat,
 } from '@/lib/video/format'
@@ -518,11 +519,7 @@ export async function POST(request: Request) {
       platform?: string
     }>(result.project_id, userId)
 
-    const configuredDuration =
-      project?.platform === 'tiktok'
-        ? project?.tiktok_clip_duration
-        : project?.youtube_clip_duration
-    const defaultDuration = Number(configuredDuration) > 0 ? Number(configuredDuration) : 5
+    const defaultDuration = resolveProjectClipSeconds(project)
 
     await updateResult(resultId, { processing_status: 'assembling' }, userId)
 

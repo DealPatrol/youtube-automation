@@ -87,7 +87,10 @@ export async function POST(request: Request) {
       title: topic,
       topic,
       description: `YouTube Shorts: ${topic}`,
-      videoLengthMinutes: 1,
+      videoLengthMinutes: Math.max(
+        0.25,
+        Math.min(Number(durationSeconds) || SHORTS_MAX_DURATION_SECONDS, SHORTS_MAX_DURATION_SECONDS) / 60
+      ),
       youtubeClipDuration: plan.averageSceneSeconds,
       tiktokClipDuration: 0,
       tone,

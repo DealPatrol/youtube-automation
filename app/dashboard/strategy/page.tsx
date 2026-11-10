@@ -299,7 +299,7 @@ export default function YouTubeStrategyStudioPage() {
 
                 {completedPrompts.size === STRATEGY_PROMPTS.length && (
                   <Link
-                    href="/dashboard/create"
+                    href="/#generator"
                     className="mt-6 block w-full text-center bg-amber-400 text-slate-950 font-bold py-3 rounded-lg hover:bg-amber-300 transition-colors"
                   >
                     Ready to Create Videos →

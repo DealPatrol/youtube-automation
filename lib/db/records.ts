@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { docs, rows } from './client'
 import { updateColumns } from './mutate'
+import { ensureFractionalVideoLengthColumn, normalizeVideoLengthMinutes } from './project-length'
 
 const RESULT_COLUMNS = new Set([
   'script',
@@ -50,6 +51,10 @@ export interface ProjectInput {
 }
 
 export async function insertProject(input: ProjectInput): Promise<string> {
+  const videoLengthMinutes = normalizeVideoLengthMinutes(input.videoLengthMinutes)
+  if (!Number.isInteger(videoLengthMinutes)) {
+    await ensureFractionalVideoLengthColumn()
+  }
   const [row] = await rows<{ id: string }>(sql`
     INSERT INTO projects (
       user_id, title, topic, description, video_length_minutes,
@@ -59,7 +64,7 @@ export async function insertProject(input: ProjectInput): Promise<string> {
       ${input.title},
       ${input.topic},
       ${input.description ?? null},
-      ${input.videoLengthMinutes},
+      ${videoLengthMinutes},
       ${input.youtubeClipDuration ?? 0},
       ${input.tiktokClipDuration ?? 15},
       ${input.tone},

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateVideoScript, estimateScriptCost } from '@/lib/ai/script-generator';
 import type { ScriptGenerationRequest } from '@/lib/ai/script-generator';
 import type { ApiResponse } from '@/lib/types';
+import { getSessionUserId } from '@/lib/auth/session';
 
 /**
  * POST /api/scripts/generate
@@ -9,16 +10,15 @@ import type { ApiResponse } from '@/lib/types';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get user from auth header (implement your auth check here)
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // The caller must have a real Better Auth session. (Previously the raw
+    // bearer value was trusted as the user id, which allowed impersonation.)
+    const userId = await getSessionUserId();
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Unauthorized' } as ApiResponse<null>,
+        { success: false, error: 'Sign in required' } as ApiResponse<null>,
         { status: 401 }
       );
     }
-
-    const userId = authHeader.replace('Bearer ', '');
 
     // Parse request body
     const body: ScriptGenerationRequest = await request.json();

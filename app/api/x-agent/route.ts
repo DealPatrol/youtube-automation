@@ -1,3 +1,4 @@
+import { requireUser } from '@/lib/auth/require-user'
 import { NextRequest, NextResponse } from 'next/server'
 import { OpenAI } from 'openai'
 import { searchRecentTweets, type XCredentials } from '@/lib/x/client'
@@ -154,6 +155,9 @@ async function buildVideoSuggestions(
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireUser()
+  if (auth.response) return auth.response
+
   try {
     const body = await request.json()
     const credentials = getCredentials()

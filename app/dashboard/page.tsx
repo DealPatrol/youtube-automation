@@ -246,7 +246,7 @@ export default function DashboardPage() {
                   Settings
                 </Button>
               </Link>
-              <Link href="/dashboard/create">
+              <Link href="/#generator">
                 <Button size="sm">
                   <Plus className="w-4 h-4 mr-2" />
                   Create Video

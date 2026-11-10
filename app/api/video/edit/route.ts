@@ -1,3 +1,4 @@
+import { requireUser } from '@/lib/auth/require-user'
 import { NextResponse } from 'next/server'
 import { execFile } from 'child_process'
 import * as fs from 'fs'
@@ -28,6 +29,9 @@ function escapeSubtitleFilterPath(filePath: string): string {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireUser()
+  if (auth.response) return auth.response
+
   let tempDir: string | null = null
   try {
     const formData = await request.formData()

@@ -138,9 +138,8 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Get user from auth header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const sessionUserId = await getSessionUserId();
+    if (!sessionUserId) {
       return NextResponse.json(
         { error: 'Unauthorized' } as ApiResponse<null>,
         { status: 401 }

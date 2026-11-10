@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { LayoutDashboard, Plus, LogOut, Loader2, Sparkles } from 'lucide-react'
 import { useAuth } from '@/lib/auth/auth-context'
 import { signOut } from '@/lib/auth/actions'
-import { logoutDemo } from '@/lib/auth/auth-context'
 
 export function Header() {
   const pathname = usePathname()
@@ -18,8 +17,8 @@ export function Header() {
   async function handleLogout() {
     try {
       await signOut()
-    } catch {
-      await logoutDemo()
+    } finally {
+      window.location.href = '/login'
     }
   }
 

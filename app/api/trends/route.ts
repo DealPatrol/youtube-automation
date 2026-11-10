@@ -1,3 +1,4 @@
+import { getSessionUserId } from '@/lib/auth/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { trendAnalyzer } from '@/lib/trends/trend-scraper';
 import type { ApiResponse, Platform } from '@/lib/types';
@@ -63,9 +64,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify authorization (optional - could add admin check)
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const sessionUserId = await getSessionUserId();
+    if (!sessionUserId) {
       return NextResponse.json(
         { error: 'Unauthorized' } as ApiResponse<null>,
         { status: 401 }

@@ -1,78 +1,25 @@
 import { NextResponse } from 'next/server'
-import { fal } from '@fal-ai/client'
+import { requireUser } from '@/lib/auth/require-user'
+import { generateVideoClip } from '@/lib/media/fal-media'
+import { MediaInputError } from '@/lib/media/voiceover'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-// Configure fal client with API key
-const FAL_KEY = process.env.FAL_KEY
-
-if (FAL_KEY) {
-  fal.config({
-    credentials: FAL_KEY,
-  })
-}
-
 export async function POST(request: Request) {
+  const auth = await requireUser()
+  if (auth.response) return auth.response
+
   try {
     const { prompt, sceneId, duration = 5, aspectRatio = '16:9' } = await request.json()
-
-    if (!prompt) {
-      return NextResponse.json(
-        { error: 'Missing prompt' },
-        { status: 400 }
-      )
-    }
-
-    if (!FAL_KEY) {
-      console.error('[API] FAL_KEY not configured')
-      return NextResponse.json(
-        { error: 'Video generation not configured. Please add FAL_KEY to environment variables.' },
-        { status: 500 }
-      )
-    }
-
-    const supportedDuration = Number(duration) >= 10 ? '10' : '5'
-    const supportedAspectRatio = aspectRatio === '9:16' ? '9:16' : '16:9'
-    console.log(`[API] Generating ${supportedDuration}s video for scene ${sceneId || 'unknown'}:`, prompt.substring(0, 100))
-
-    // Use fal.subscribe for Kling Video generation with progress tracking
-    const result = await fal.subscribe('fal-ai/kling-video/v2.6/pro/text-to-video', {
-      input: {
-        prompt: prompt,
-        duration: supportedDuration,
-        aspect_ratio: supportedAspectRatio,
-      },
-      logs: true,
-      onQueueUpdate: (update) => {
-        if (update.status === 'IN_PROGRESS') {
-          update.logs?.map((log) => log.message).forEach((msg) => {
-            console.log(`[API] Video generation progress (scene ${sceneId}): ${msg}`)
-          })
-        }
-      },
-    })
-
-    const videoUrl = result.data?.video?.url
-
-    if (!videoUrl) {
-      throw new Error('No video URL in response')
-    }
-
-    console.log(`[API] Video generated successfully for scene ${sceneId}:`, videoUrl)
-
-    return NextResponse.json({
-      success: true,
-      videoUrl,
-      thumbnailUrl: result.data?.thumbnail_url,
-      requestId: result.requestId,
-      sceneId,
-    })
+    const output = await generateVideoClip({ prompt, duration, aspectRatio })
+    return NextResponse.json({ success: true, ...output, sceneId })
   } catch (error) {
-    console.error('[API] Video generation error:', error)
+    console.error('[API] Video generation error:', error instanceof Error ? error.message : error)
+    const status = error instanceof MediaInputError ? error.status : 500
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate video' },
-      { status: 500 }
+      { status }
     )
   }
 }
